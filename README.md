@@ -1,5 +1,10 @@
-This is the Toolbox for Collective Motion.
+# Toolbox_CM
+A python toolbox for Collective Motion.
 
-*** Installation
+## Installation via Conda:
 
-conda 
+```
+conda install numpy numba
+```
+
++ requires the Animation Toolbox.
