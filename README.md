@@ -1,5 +1,5 @@
-# Toolbox_CM
-A python toolbox for Collective Motion.
+# Toolbox_RINNO
+A python toolbox for the RIPO and RINNO models.
 
 ## Installation via Conda:
 
