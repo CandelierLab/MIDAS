@@ -3,7 +3,7 @@ import numpy as np
 import time
 
 import project
-from Window import Window               # type: ignore
+from Animation.Window import Window                           # type: ignore
 
 # import animation
 
