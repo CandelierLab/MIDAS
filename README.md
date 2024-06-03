@@ -1,5 +1,6 @@
 # Toolbox_MIDAS
-A python toolbox for *Multiple Information-Driven Agent Simulation* (MIDAS)
+A python toolbox for *Multiple Information-Driven Agent Simulation* (MIDAS).
+
 It includes the RIPO and RINNO models.
 
 ## Installation via Conda:
