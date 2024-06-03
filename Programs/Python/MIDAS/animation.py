@@ -1,7 +1,7 @@
 import re
 from agents import *
 
-from AE.Display.Animation.Animation_2d import *
+from Animation.Animation_2d import *
 from AE.Display.Colormap import *
 
 class piechart(composite):
