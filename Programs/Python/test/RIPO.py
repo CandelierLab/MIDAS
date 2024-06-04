@@ -1,19 +1,19 @@
 import os
 import numpy as np
 
-import project
-import MIDAS.engine as engine
-# from agents.RINNO import RINNO_weights
+from MIDAS.engine import Engine
 
 os.system('clear')
 
 # === Parameters ===========================================================
 
+Nagents = 10
+
 # movieDir = project.root + '/Movies/TAPAs/'
 
 # # === Engine ===============================================================
 
-# E = engine.Engine()
+E = Engine()
 
 # # --- General settings
 
@@ -29,7 +29,9 @@ os.system('clear')
 
 # # === Agents ===============================================================
 
-# Nagents = 100
+E.add_group('RIPO', Nagents)
+
+
 # nS = 4
 # rho = 0.2
 
@@ -101,4 +103,4 @@ os.system('clear')
 # # E.window.autoplay = False
 # # E.window.movieFile = movieDir + 'Donut.mp4'
 
-# E.run()
+E.run()
