@@ -7,7 +7,7 @@ os.system('clear')
 
 # === Parameters ===========================================================
 
-Nagents = 10
+Nagents = 1000
 
 # movieDir = project.root + '/Movies/TAPAs/'
 
@@ -22,14 +22,14 @@ E = Engine()
 # E.periodic_boundary_condition = True
 
 # # Number of steps
-# E.steps = None
+E.steps = 2
 
 # # Verbose
 # E.verbose = None
 
 # # === Agents ===============================================================
 
-E.add_group('RIPO', Nagents)
+E.add_group('blind', Nagents, name='agents')
 
 
 # nS = 4
@@ -81,14 +81,14 @@ E.add_group('RIPO', Nagents)
 
 # # === Visualization ========================================================
 
-# E.setup_animation()
+E.setup_animation()
 
-# # --- Agents settings 
+# --- Agents settings 
 
-# # E.animation.options['agents']['color'] = 'red'
-# E.animation.options['agents']['cmap'] = 'hsv'
-# # E.animation.options['agents']['dynamic_cmap'] = 'speed'
-# # E.animation.options['agents']['cmap_distribution'] = 'index'
+# E.animation.options['agents']['color'] = 'red'
+E.animation.options['agents']['cmap'] = 'hsv'
+# E.animation.options['agents']['dynamic_cmap'] = 'speed'
+# E.animation.options['agents']['cmap_distribution'] = 'index'
 
 # # --- Information
 
@@ -100,7 +100,7 @@ E.add_group('RIPO', Nagents)
 
 # # === Simulation ===========================================================
 
-# # E.window.autoplay = False
+E.window.autoplay = False
 # # E.window.movieFile = movieDir + 'Donut.mp4'
 
 E.run()

@@ -1,8 +1,7 @@
 import re
-from agents import *
 
 from Animation.Animation_2d import *
-from AE.Display.Colormap import *
+from Animation.Colormap import *
 
 class piechart(composite):
   """
@@ -129,6 +128,10 @@ class piechart(composite):
 
 class Animation(Animation_2d):
     
+  # ------------------------------------------------------------------------
+  #   Constructor
+  # ------------------------------------------------------------------------
+
   def __init__(self, engine):
 
     # Define engine
@@ -139,124 +142,114 @@ class Animation(Animation_2d):
 
     # Default display options
     self.options = {}
-    for k,v in self.engine.agents.groups.items():
+    for k in self.engine.agents.group_names:
       self.options[k] = {
         'color': 'white', 
         'cmap': None,
-        'cmap_distribution': 'x',
-        'dynamic_cmap': None,
-        'mapColorOn': 'x0',
+        'cmap_on': 'x0',
+        'cmap_dynamic': None,
         'size': 0.015
       }
 
     # Trajectory trace
     self.trace_duration = None
 
-    # Default info agent
-    self.info_agent = None
-
     # Colormaps
+    self.colormap = Colormap('hsv')
     self.pie_cmap = Colormap('coolwarm')
     self.pie_cmap.range = [-1.5,1.5]
-    self.colormap = Colormap('cool')
 
     # Timeline
     self.timeline = {}
-    
-  def initialize(self):
 
-    # === Agents ===========================================================
+  # ------------------------------------------------------------------------
+  #   Initialization
+  # ------------------------------------------------------------------------
+   
+  def initialize(self):
 
     # Define padding
     padding = np.max([self.options[k]['size'] for k in self.options])    
     self.setPadding(padding)
 
-    # Agent shape
+    # === Agents ===========================================================
+
+    # Agent's triangle shape
     pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
 
-    for name, Idx in self.engine.agents.groups.items():
+    for i in range(self.engine.agents.N_agents):
 
-      # Color and colormaps
-      if self.options[name]['cmap'] is None:
-        color = self.options[name]['color']
+      # Group options
+      opt = self.options[self.engine.agents.group_names[self.engine.agents.group[i]]]
+
+      # --- Color
+
+      # Colormap and color
+      if opt['cmap'] is None:
+        color = opt['color']
       else:
         color = None
-        cmap = Colormap(name=self.options[name]['cmap'])
+        cmap = Colormap(name=opt['cmap'])
 
-      for i in Idx:
+      if color is None:
+        match opt['cmap_on']:
 
-        # Agent
-        Ag = self.engine.agents.list[i]
+          case 'index':   # Color on index
+            n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
+            clrs = (cmap.qcolor(i/n), None)
 
-        if color is None:
+          case 'x0': # Color on x-position (default)
+            clrs = (cmap.qcolor(self.engine.agents.pos[i,0]), None)
 
-          match self.options[name]['cmap_distribution']:
-            case 'index':
-              clrs = (cmap.qcolor(i/len(Idx)), None)
-            case _:
-              # Default: x-position
-              clrs = (cmap.qcolor(Ag.x), None)
+          case 'y0': # Color on y-position            
+            clrs = (cmap.qcolor(self.engine.agents.pos[i,1]), None)
 
-        elif isinstance(color, tuple):
-          clrs = color
+          case 'z0': # Color on z-position            
+            clrs = (cmap.qcolor(self.engine.agents.pos[i,2]), None)
 
-        else:
-          clrs = (color, None)
+      elif isinstance(color, tuple):
+        clrs = color
 
-        if type(Ag)==Fixed:
-          self.add(circle, i,
-            position = [Ag.x, Ag.y],
-            radius = 0.005,
-            colors = clrs,
-            zvalue=-1
-          )
+      else:
+        clrs = (color, None)
 
-        # elif type(Ag)==RPA_mpct and (Ag.rHb[Ag.gidx]>0 or Ag.rHf[Ag.gidx]>0):
+      # --- Shape
 
-        #   r = np.max((Ag.rHb[Ag.gidx], Ag.rHf[Ag.gidx]))
+      if self.engine.agents.atype[self.engine.agents.atype[i]]=='fixed':
 
-        #   self.add(group, i,
-        #     position = [Ag.x, Ag.y],
-        #     orientation = Ag.a
-        #   )
+        self.add(circle, i,
+          position = self.engine.agents.pos[i,:],
+          radius = 0.005,
+          colors = clrs,
+          zvalue=-1
+        )
 
-        #   self.add(circle, 'circle_{:d}'.format(i), parent=i,
-        #     position = [0, 0],
-        #     radius = r/2,
-        #     colors = clrs,
-        #     thickness = 0
-        #   )
+      else:
 
-        #   self.add(polygon, 'arrow_{:d}'.format(i), parent=i,
-        #     position = [0, 0],
-        #     points = pts*self.options[name]['size']*r*35,
-        #     colors = ('Back','None'),
-        #   )
+        a = np.angle(self.engine.agents.vel[i,0] + 1j*self.engine.agents.vel[i,1])
 
-        else:
-
-          self.add(polygon, i,
-            position = [Ag.x, Ag.y],
-            orientation = Ag.a,
-            points = pts*self.options[name]['size'],
-            colors = clrs,
-          )
+        self.add(polygon, i,
+          position =  self.engine.agents.pos[i,:],
+          orientation = a,
+          points = pts*opt['size'],
+          colors = clrs,
+        )
 
         # === Traces =======================================================
           
-        if self.trace_duration is not None:
+        # if self.trace_duration is not None:
 
-          # Initialize trace coordinates
-          Ag.trace = np.ones((self.trace_duration,1))*np.array([Ag.x, Ag.y])
+        #   # Initialize trace coordinates
+        #   Ag.trace = np.ones((self.trace_duration,1))*np.array([Ag.x, Ag.y])
       
-          # Trace polygon
-          self.add(path, f'{i:d}_trace',
-            position = [0, 0],
-            orientation = 0,
-            points = Ag.trace,
-            colors = (None, clrs[0]),
-            thickness = 3
-          )
+        #   # Trace polygon
+        #   self.add(path, f'{i:d}_trace',
+        #     position = [0, 0],
+        #     orientation = 0,
+        #     points = Ag.trace,
+        #     colors = (None, clrs[0]),
+        #     thickness = 3
+        #   )
 
   def time_str(self):
 
@@ -344,7 +337,6 @@ class Animation(Animation_2d):
         Ag.trace[Ag.trace<0] = 0
         Ag.trace[Ag.trace>1] = 1
         
-
   def update_display(self, F):
     '''
     Update display
@@ -362,7 +354,7 @@ class Animation(Animation_2d):
       self.item[i].orientation = F.A[i]
 
       # Color
-      match self.options[self.engine.agents.list[i].name]['dynamic_cmap']:
+      match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
         case 'speed':
           self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].v), None)
         case 'density':
