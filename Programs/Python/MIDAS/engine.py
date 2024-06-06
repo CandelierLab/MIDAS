@@ -99,6 +99,7 @@ class Agents:
     # Positions and velocities
     self.pos = np.empty((0, dimension))
     self.vel = np.empty((0, dimension))
+    self.ang = np.empty((0, dimension-1))
     self.speed = np.empty(0)
 
     # Angular noise
@@ -231,10 +232,20 @@ class Engine:
 
     print('--- Step', i, '-'*50)
 
-    print(self.agents.pos[0,:])
+    # print(self.agents.pos[0,:])
 
     # Double-buffer computation trick
     if i % 2:
+      
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
+        self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
+        self.cuda.speed, self.cuda.noise, self.cuda.group, self.cuda.param)
+      
+      cuda.synchronize()
+      
+      self.agents.pos = self.cuda.p1.copy_to_host()
+
+    else:
 
       CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
@@ -244,17 +255,7 @@ class Engine:
       
       self.agents.pos = self.cuda.p0.copy_to_host()
 
-    else:
-
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
-        self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
-        self.cuda.speed, self.cuda.noise, self.cuda.group, self.cuda.param)
-      
-      cuda.synchronize()
-      
-      self.agents.pos = self.cuda.p1.copy_to_host()
-
-    print(self.agents.pos[0,:])
+    # print(self.agents.pos[0,:])
     
   # ------------------------------------------------------------------------
   #   Run
@@ -351,7 +352,7 @@ class CUDA:
 # --------------------------------------------------------------------------
 
 @cuda.jit
-def CUDA_step(i, atype, p0, v0, p1, v1, speed, noise, param):
+def CUDA_step(i, atype, p0, v0, p1, v1, speed, noise, group, param):
   '''
   The CUDA kernel
   '''
@@ -388,12 +389,12 @@ def CUDA_step(i, atype, p0, v0, p1, v1, speed, noise, param):
     periodic_Z = param[6]
 
     # if i==0:
-    #   print(N, dim, arena)
-    #   print(arena_X, periodic_X)
+    #   # print(N, dim, arena, arena_X, periodic_X)
+    #   print(p0[i,0])
 
     # --- Computation ------------------------------------------------------
 
     # Blind agents
-    for j in range(p0.shape[1]):
+    for j in range(dim):
       p1[i,j] = p0[i,j] + v0[i,j]
       v1[i,j] = v0[i,j]

@@ -7,7 +7,7 @@ os.system('clear')
 
 # === Parameters ===========================================================
 
-Nagents = 1000
+Nagents = 100
 
 # movieDir = project.root + '/Movies/TAPAs/'
 

@@ -331,49 +331,49 @@ class Animation(Animation_2d):
     # Compute step
     self.engine.step(t.step)
 
-    # Update traces
-    if self.trace_duration is not None:
-      for i, Ag in enumerate(self.engine.agents.list):
-        Ag.trace = np.roll(Ag.trace, 1, axis=0)
-        Ag.trace[0,0] = Ag.x
-        Ag.trace[0,1] = Ag.y
+    # Update display
+    self.update_display()
 
-        # Periodic boundary conditions
-        Ag.trace = np.unwrap(Ag.trace, period=1, axis=0)
-        Ag.trace[Ag.trace<0] = 0
-        Ag.trace[Ag.trace>1] = 1
+    # Update traces
+    # if self.trace_duration is not None:
+    #   for i, Ag in enumerate(self.engine.agents.list):
+    #     Ag.trace = np.roll(Ag.trace, 1, axis=0)
+    #     Ag.trace[0,0] = Ag.x
+    #     Ag.trace[0,1] = Ag.y
+
+    #     # Periodic boundary conditions
+    #     Ag.trace = np.unwrap(Ag.trace, period=1, axis=0)
+    #     Ag.trace[Ag.trace<0] = 0
+    #     Ag.trace[Ag.trace>1] = 1
         
-  def update_display(self, F):
+  def update_display(self):
     '''
     Update display
     '''
     
-    mx = 0
-    Mx = 0
+    a = np.angle(self.engine.agents.vel[:,0] + 1j*self.engine.agents.vel[:,1])
 
-    for i, Ag in enumerate(self.engine.agents.list):
+    for i in range(self.engine.agents.N_agents):
+
+      # Skip fixed agents
+      if self.engine.agents.atype[i]==0: continue
 
       # Position
-      self.item[i].position = [F.X[i], F.Y[i]]
+      self.item[i].position = self.engine.agents.pos[i]
 
       # Orientation
-      self.item[i].orientation = F.A[i]
+      self.item[i].orientation = a[i]
 
       # Color
-      match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
-        case 'speed':
-          self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].v), None)
-        case 'density':
-          if self.engine.agents.list[i].density is not None:
-            self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].density), None)
-        case 'custom':
-          self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].get_color()), None)
+      # match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
+      #   case 'speed':
+      #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].v), None)
+      #   case 'density':
+      #     if self.engine.agents.list[i].density is not None:
+      #       self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].density), None)
+      #   case 'custom':
+      #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].get_color()), None)
     
       # Traces
-      if self.trace_duration is not None:
-        self.item[f'{i:d}_trace'].points = Ag.trace
-            
-    #   mx = min(mx, np.min(Ag.trace[:,0]))
-    #   Mx = max(Mx, np.max(Ag.trace[:,0]))
-
-    # print(mx, Mx)
+      # if self.trace_duration is not None:
+      #   self.item[f'{i:d}_trace'].points = Ag.trace
