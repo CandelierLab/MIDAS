@@ -126,7 +126,7 @@ class piechart(composite):
 
     return self.cmap.qcolor(vcol)
 
-class Animation(Animation_2d):
+class Animation2d(Animation_2d):
     
   # ------------------------------------------------------------------------
   #   Constructor
@@ -136,11 +136,13 @@ class Animation(Animation_2d):
 
     # Define engine
     self.engine = engine
+    self.dim = self.engine.geom.dimension
 
     # Animation constructor
-    super().__init__(self.engine.window, 
+    super().__init__(self.engine.window,
                      boundaries=[np.array([-1, 1])*self.engine.geom.arena_shape[0]/2,
-                                 np.array([-1, 1])*self.engine.geom.arena_shape[1]/2])
+                                 np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
+                    disp_boundaries=False)
 
     # Default display options
     self.options = {}
@@ -173,6 +175,51 @@ class Animation(Animation_2d):
     # Define padding
     padding = np.max([self.options[k]['size'] for k in self.options])    
     self.setPadding(padding)
+
+    # === Boundaries =======================================================
+
+    match self.engine.geom.arena:
+
+      case 'circular':
+        
+        if self.engine.geom.periodic:
+          self.add(circle, 'boundary', 
+                   position = [0,0],
+                   radius = self.engine.geom.arena_shape[0]/2,
+                   colors = (None, 'grey'),
+                   linestyle = '--')
+        else:
+          self.add(circle, 'boundary', 
+                   position = [0,0],
+                   radius = self.engine.geom.arena_shape[0]/2,
+                   colors = (None, 'white'))
+
+      case 'rectangular':
+        
+        pts_left = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
+                    [-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
+        pts_right = [[self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
+                     [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
+        pts_top = [[-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2],
+                    [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
+        pts_bottom = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
+                    [self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2]]
+
+        # X-periodicity
+        if self.engine.geom.periodic[0]:
+          self.add(line, 'boundary_left', points = pts_left, color = 'grey', linestyle = '--')
+          self.add(line, 'boundary_right', points = pts_right, color = 'grey', linestyle = '--')
+        else:
+          self.add(line, 'boundary_left', points = pts_left, color = 'white')
+          self.add(line, 'boundary_right', points = pts_right, color = 'white')
+
+        # X-periodicity
+        if self.engine.geom.periodic[1]:
+          self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--')
+          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--')
+        else:
+          self.add(line, 'boundary_top', points = pts_top, color = 'white')
+          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white')
 
     # === Agents ===========================================================
 
@@ -257,6 +304,10 @@ class Animation(Animation_2d):
         #     thickness = 3
         #   )
 
+  # ------------------------------------------------------------------------
+  #   Informations
+  # ------------------------------------------------------------------------
+   
   def time_str(self):
 
     s = '<p>step {:06d}</p>'.format(self.step)
@@ -318,6 +369,10 @@ class Animation(Animation_2d):
     #   nticks = 2
     # )
 
+  # ------------------------------------------------------------------------
+  #   Updates
+  # ------------------------------------------------------------------------
+   
   def update(self, t):
     
     # Update timer display

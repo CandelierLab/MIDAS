@@ -1,9 +1,24 @@
-
-Boundary conditions (display + implementation)
-- Rectangular 
-  - periodic
-  - reflexive
+Boundary conditions (implementation)
 - Circular
-  - periodic
   - reflexive
 
+Noise
+
+Implement RIPO 2D
+
+Storage
+  - Save to database
+  - Replay
+
+Visualization
+  - Density field
+
+---------------------------------------------------------
+
+Implement 1D (start with blind)
+  - Visualization
+  - Computation
+
+Implement 3D (start with blind)
+  - Visualization
+  - Computation

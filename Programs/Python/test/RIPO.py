@@ -14,6 +14,7 @@ Nagents = 100
 # # === Engine ===============================================================
 
 E = Engine()
+E = Engine(arena='circular', periodic=True)
 
 # # --- General settings
 
