@@ -216,11 +216,12 @@ class Engine:
 
     self.window = Window('Simple animation', style=style)
     self.animation = MIDAS.animation.Animation(self)
-
+    
     self.window.add(self.animation)
 
     # Forbid backward animation
     self.window.allow_backward = False
+
 
   # ------------------------------------------------------------------------
   #   Step

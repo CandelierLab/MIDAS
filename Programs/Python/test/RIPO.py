@@ -31,7 +31,6 @@ E.steps = 2
 
 E.add_group('blind', Nagents, name='agents')
 
-
 # nS = 4
 # rho = 0.2
 
@@ -87,8 +86,7 @@ E.setup_animation()
 
 # E.animation.options['agents']['color'] = 'red'
 E.animation.options['agents']['cmap'] = 'hsv'
-# E.animation.options['agents']['dynamic_cmap'] = 'speed'
-# E.animation.options['agents']['cmap_distribution'] = 'index'
+# E.animation.options['agents']['cmap_on'] = 'index'
 
 # # --- Information
 

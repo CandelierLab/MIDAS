@@ -138,7 +138,9 @@ class Animation(Animation_2d):
     self.engine = engine
 
     # Animation constructor
-    super().__init__()
+    super().__init__(self.engine.window, 
+                     boundaries=[np.array([-1, 1])*self.engine.geom.arena_shape[0]/2,
+                                 np.array([-1, 1])*self.engine.geom.arena_shape[1]/2])
 
     # Default display options
     self.options = {}
@@ -148,7 +150,7 @@ class Animation(Animation_2d):
         'cmap': None,
         'cmap_on': 'x0',
         'cmap_dynamic': None,
-        'size': 0.015
+        'size': 0.01
       }
 
     # Trajectory trace
@@ -196,15 +198,19 @@ class Animation(Animation_2d):
 
           case 'index':   # Color on index
             n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
-            clrs = (cmap.qcolor(i/n), None)
+            cmap.range = [0, n-1]
+            clrs = (cmap.qcolor(i), None)
 
           case 'x0': # Color on x-position (default)
+            cmap.range = self.boundaries['x']
             clrs = (cmap.qcolor(self.engine.agents.pos[i,0]), None)
 
-          case 'y0': # Color on y-position            
+          case 'y0': # Color on y-position   
+            cmap.range = self.boundaries['y']         
             clrs = (cmap.qcolor(self.engine.agents.pos[i,1]), None)
 
           case 'z0': # Color on z-position            
+            cmap.range = self.boundaries['z']
             clrs = (cmap.qcolor(self.engine.agents.pos[i,2]), None)
 
       elif isinstance(color, tuple):
