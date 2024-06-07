@@ -14,7 +14,7 @@ Nagents = 100
 # # === Engine ===============================================================
 
 E = Engine()
-# E = Engine(arena='circular', periodic=False)
+# E = Engine(arena='circular', periodic=True)
 
 # # --- General settings
 
@@ -30,7 +30,7 @@ E.steps = 2
 
 # # === Agents ===============================================================
 
-E.add_group('blind', Nagents, name='agents')
+E.add_group('blind', Nagents, name='agents', vnoise=0.001)
 
 # nS = 4
 # rho = 0.2

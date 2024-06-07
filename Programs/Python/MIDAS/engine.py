@@ -6,7 +6,7 @@ import math, cmath
 import time
 import numpy as np
 from numba import cuda
-from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_uniform_float32, xoroshiro128p_normal_float32
+from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_float32
 
 from Animation.Window import Window
 import MIDAS.animation
@@ -40,7 +40,6 @@ class Geometry:
         self.periodic = kwargs['periodic'] if 'periodic' in kwargs else True
       case 'rectangular':
         self.periodic = kwargs['periodic'] if 'periodic' in kwargs else [True]*self.dimension
-
   
   def set_initial_positions(self, ptype, n):
     '''
@@ -82,19 +81,15 @@ class Geometry:
       
     return pos
   
-  def set_initial_velocities(self, ptype, n, speeds):
+  def set_initial_orientations(self, orientation, n):
     '''
     Initial velocities
     '''
       
-    if ptype in [None, 'random', 'shuffle']:
+    if orientation in [None, 'random', 'shuffle']:
+      orientation = 2*np.pi*np.random.rand(n)
 
-      # --- Random velocities
-
-      tmp = np.random.default_rng().multivariate_normal(np.zeros(self.dimension), np.eye(self.dimension), size=n)
-      vel = speeds[:,None]*tmp/np.sqrt(np.sum(tmp**2, axis=1))[:,None]
-
-    return vel
+    return orientation
     
 # === AGENTS ===============================================================
 
@@ -119,12 +114,17 @@ class Agents:
     self.atype = np.empty(0, dtype=int)
 
     # Positions and velocities
+    '''
+    Position are expressed in cartesian cooridnates (x,y,z)
+    Velocities are expressed in polar coordinates (v,alpha,beta)
+    '''
     self.pos = np.empty((0, dimension))
     self.vel = np.empty((0, dimension))
+    self.vlim = np.empty((0, 2))
 
     # Noise
     '''
-      0: velocity
+      0: velocity amplitude noise
       (1,2): angular noises
     '''
     self.noise = np.empty((0, dimension))
@@ -188,7 +188,7 @@ class Engine:
     if 'initial_condition' in kwargs:
       initial_condition = kwargs['IC']
     else:
-      initial_condition = {'position': None, 'velocity': None, 'speed': 0.01}
+      initial_condition = {'position': None, 'orientation': None, 'speed': 0.01}
 
     # --- Positions
 
@@ -200,18 +200,24 @@ class Engine:
     # --- Velocities
 
     # Speed vector
-    speed = initial_condition['speed']*np.ones(N) if type(initial_condition['speed']) in [int, float] else initial_condition['speed']
+    V = initial_condition['speed']*np.ones(N) if type(initial_condition['speed']) in [int, float] else initial_condition['speed']
 
-    if type(initial_condition['velocity']) in [type(None), str]:
-      vel = self.geom.set_initial_velocities(initial_condition['velocity'], N, speed)
+    if type(initial_condition['orientation']) in [type(None), str]:
+      alpha = self.geom.set_initial_orientations(initial_condition['orientation'], N)
     else:
-      vel = np.array(initial_condition['velocity'])
+      alpha = np.array(initial_condition['orientation'])
+    vel = np.column_stack((V, alpha))
     
+    # Limits
+    vlim = np.ones((N,2), dtype=np.float32)
+    vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else 0
+    vlim[:,1] = kwargs['vmax'] if 'vmax' in kwargs else V
+
     # --- Noise
 
     noise = np.ones((N,2), dtype=np.float32)
-    noise[:,0] = 0
-    noise[:,1] = 0.1
+    noise[:,0] = kwargs['vnoise'] if 'vnoise' in kwargs else 0
+    noise[:,1] = kwargs['anoise'] if 'anoise' in kwargs else 0
 
     # --- Agents definition ------------------------------------------------
 
@@ -224,6 +230,7 @@ class Engine:
     # Position and speed
     self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
     self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
+    self.agents.vlim = np.concatenate((self.agents.vlim, vlim), axis=0)
 
     # Noise
     self.agents.noise = np.concatenate((self.agents.noise, noise), axis=0)
@@ -268,16 +275,12 @@ class Engine:
 
   def step(self, i):
 
-    # print('--- Step', i, '-'*50)
-
-    # print(self.agents.pos[0,:])
-
     # Double-buffer computation trick
     if i % 2:
       
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype, self.cuda.group,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
-        self.cuda.noise, self.cuda.group, self.cuda.param, self.cuda.rng)
+        self.cuda.noise, self.cuda.vlim, self.cuda.param, self.cuda.rng)
       
       cuda.synchronize()
       
@@ -286,16 +289,14 @@ class Engine:
 
     else:
 
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype, self.cuda.group,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
-        self.cuda.noise, self.cuda.group, self.cuda.param, self.cuda.rng)
+        self.cuda.noise, self.cuda.vlim, self.cuda.param, self.cuda.rng)
       
       cuda.synchronize()
       
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
-
-    # print(self.agents.pos[0,:])
     
   # ------------------------------------------------------------------------
   #   Run
@@ -321,6 +322,7 @@ class Engine:
     self.cuda.atype = cuda.to_device(self.agents.atype.astype(np.float32))
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
+    self.cuda.vlim = cuda.to_device(self.agents.vlim.astype(np.float32))
     self.cuda.noise = cuda.to_device(self.agents.noise.astype(np.float32))
     self.cuda.group = cuda.to_device(self.agents.group.astype(np.float32))
 
@@ -413,8 +415,9 @@ class CUDA:
 
     # Other required arrays
     self.atype = None
-    self.noise = None
     self.group = None
+    self.noise = None
+    self.vlim = None
 
     # Random number generator
     self.rng = None
@@ -424,7 +427,7 @@ class CUDA:
 # --------------------------------------------------------------------------
 
 @cuda.jit
-def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param, rng):
+def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
   '''
   The CUDA kernel
   '''
@@ -493,38 +496,43 @@ def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param, rng):
     # === Computation ======================================================
 
     # Polar coordinates
-    zv = complex(v0[i,0], v0[i,1])
+    v = v0[i,0]
+    alpha = v0[i,1]
 
     # --- Blind agents -----------------------------------------------------
 
     if atype[i]==1:
       da = 0
 
-    # === Finalization =====================================================
+    # ... 
 
-    # --- Noise ------------------------------------------------------------
-
-    # Speed noise
-    vn = 0
-
-    # Angular noise
-    an = noise[i,1]*xoroshiro128p_normal_float32(rng, i)
-
-    # --- Update -----------------------------------------------------------
+    # === Update ===========================================================
 
     match dim:
 
       case 2:
 
-        # Reorient
-        zv *= cmath.exp(1j*(da + an))
+        # Reorientation
+        alpha += da
+
+        # --- Noise --------------------------------------------------------
+
+        # Speed noise
+        if noise[i,0]:
+          v += noise[i,0]*xoroshiro128p_normal_float32(rng, i)
+          if v < vlim[i,0]: v = vlim[i,0]
+          elif v > vlim[i,1]: v = vlim[i,1]
+
+        # Angular noise
+        if noise[i,1]:
+          alpha += noise[i,1]*xoroshiro128p_normal_float32(rng, i)
 
         # Candidate position and velocity
         z0 = complex(p0[i,0], p0[i,1])
-        z1 = z0 + zv
+        z1 = z0 + cmath.rect(v, alpha)
 
         # Boundary conditions
-        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, zv, arena,
+        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, alpha, arena,
                                                        arena_X, arena_Y,
                                                        periodic_X, periodic_Y)
 
@@ -533,8 +541,11 @@ def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param, rng):
 # --------------------------------------------------------------------------
 
 @cuda.jit(device=True)
-def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   
+  if v==0:
+    return (z1.real, z1.imag, v, alpha)
+
   if arena==0:
     '''
     Circular arena
@@ -555,26 +566,28 @@ def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
         '''
 
         # Crossing point
-        phi = cmath.phase(zv) + math.asin((z0.imag*math.cos(cmath.phase(zv)) - z0.real*math.sin(cmath.phase(zv)))/arena_X)
+        phi = alpha + math.asin((z0.imag*math.cos(alpha) - z0.real*math.sin(alpha))/arena_X)
         zc = cmath.rect(arena_X, phi)
 
         # Position        
-        z1 = zc + (abs(zv)-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - cmath.phase(zv)))
+        z1 = zc + (v-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - alpha))
 
-        # Velocity
-        zv = zv*cmath.exp(1j*(cmath.pi-2*(cmath.phase(zv)-phi)))
+        # Final velocity
+        alpha += cmath.pi-2*(alpha-phi)
 
-    # Assign position and velocity
+    # Finam position
     px = z1.real
     py = z1.imag
 
-    vx = zv.real
-    vy = zv.imag
 
   elif arena==1:  
     '''
     Rectangular arena
     '''
+
+    zv = cmath.rect(v, alpha)
+    vx = zv.real
+    vy = zv.imag
 
     # First dimension
     if periodic_X:
@@ -582,8 +595,6 @@ def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
       if z1.real > arena_X: px = z1.real - 2*arena_X
       elif z1.real < -arena_X: px = z1.real + 2*arena_X
       else: px = z1.real
-
-      vx = zv.real
 
     else:
 
@@ -595,7 +606,6 @@ def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
         vx = -zv.real
       else:
         px = z1.real
-        vx = zv.real
 
     # Second dimension
     if periodic_Y:
@@ -603,8 +613,6 @@ def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
       if z1.imag > arena_Y: py = z1.imag - 2*arena_Y
       elif z1.imag < -arena_Y: py = z1.imag + 2*arena_Y
       else: py = z1.imag
-
-      vy = zv.imag
 
     else:
 
@@ -616,6 +624,7 @@ def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
         vy = -zv.imag
       else:
         py = z1.imag
-        vy = zv.imag
 
-  return (px, py, vx, vy)
+    v, alpha = cmath.polar(complex(vx, vy))
+
+  return (px, py, v, alpha)

@@ -248,7 +248,7 @@ class Animation2d(Animation_2d):
       if color is None:
         match opt['cmap_on']:
 
-          case 'index':   # Color on index
+          case 'index': # Color on index
             n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
             cmap.range = [0, n-1]
             clrs = (cmap.qcolor(i), None)
@@ -273,7 +273,10 @@ class Animation2d(Animation_2d):
 
       # --- Shape
 
-      if self.engine.agents.atype[self.engine.agents.atype[i]]=='fixed':
+      if self.engine.agents.atype[self.engine.agents.atype[i]]==0:
+        '''
+        Fixed agents
+        '''
 
         self.add(circle, i,
           position = self.engine.agents.pos[i,:],
@@ -283,12 +286,13 @@ class Animation2d(Animation_2d):
         )
 
       else:
-
-        a = np.angle(self.engine.agents.vel[i,0] + 1j*self.engine.agents.vel[i,1])
+        '''
+        Moving agents
+        '''
 
         self.add(polygon, i,
           position =  self.engine.agents.pos[i,:],
-          orientation = a,
+          orientation = self.engine.agents.vel[i,1],
           points = pts*opt['size'],
           colors = clrs,
         )
@@ -411,8 +415,6 @@ class Animation2d(Animation_2d):
     Update display
     '''
     
-    a = np.angle(self.engine.agents.vel[:,0] + 1j*self.engine.agents.vel[:,1])
-
     for i in range(self.engine.agents.N_agents):
 
       # Skip fixed agents
@@ -422,7 +424,7 @@ class Animation2d(Animation_2d):
       self.item[i].position = self.engine.agents.pos[i]
 
       # Orientation
-      self.item[i].orientation = a[i]
+      self.item[i].orientation = self.engine.agents.vel[i,1]
 
       # Color
       # match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
