@@ -2,7 +2,7 @@
 MIDAS Engine
 '''
 
-import cmath
+import math, cmath
 import time
 import numpy as np
 from numba import cuda
@@ -462,78 +462,108 @@ def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param):
 
     # --- Update -----------------------------------------------------------
 
-    alpha += da + an
-    z = cmath.rect(v, alpha)
-    
-    # Velocity
-    v1[i,0] = z.real
-    v1[i,1] = z.imag
+    match dim:
 
-    # Position
-    p1[i,0] = p0[i,0] + v1[i,0]
-    p1[i,1] = p0[i,1] + v1[i,1]
+      case 2:
 
-    # --- Boundary conditions
+        alpha += da + an
 
-    if arena==0:
-      '''
-      Circular arena
-      '''
+        # Candidate position and velocity
+        z0 = complex(p0[i,0], p0[i,1])
+        zv = cmath.rect(v, alpha)
+        z1 = z0 + zv
 
-      # Check for outsiders
-      z1 = complex(p1[i,0], p1[i,1])
-      if abs(z1) > arena_X:
+        # Boundary conditions
+        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y)
 
-        if periodic_X:
-          z1 = cmath.rect(2*arena_X-abs(z1), cmath.phase(z1)+cmath.pi)
-          p1[i,0] = z1.real
-          p1[i,1] = z1.imag
-          
-        else:
-          pass
+# --------------------------------------------------------------------------
+#   Device functions
+# --------------------------------------------------------------------------
 
-      
+@cuda.jit(device=True)
+def assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+  
+  if arena==0:
+    '''
+    Circular arena
+    '''
 
-    elif arena==1:  
-      '''
-      Rectangular arena
-      '''
+    # Check for outsiders
+    if abs(z1) > arena_X:
 
-      # First dimension
       if periodic_X:
-        if p1[i,0] > arena_X: p1[i,0] -= 2*arena_X
-        if p1[i,0] < -arena_X: p1[i,0] += 2*arena_X
+        '''
+        Periodic circular
+        '''
+        z1 = cmath.rect(2*arena_X-abs(z1), cmath.phase(z1)+cmath.pi)
+        
       else:
-        if p1[i,0] > arena_X:
-          p1[i,0] = 2*arena_X - p1[i,0]
-          v1[i,0] = -v1[i,0]
-        if p1[i,0] < -arena_X:
-          p1[i,0] = -2*arena_X - p1[i,0]
-          v1[i,0] = -v1[i,0]
+        '''
+        Reflexive circular
+        '''
 
-      # Second dimension
-      if dim>1:
-        if periodic_Y:
-          if p1[i,1] > arena_Y: p1[i,1] -= 2*arena_Y
-          if p1[i,1] < -arena_Y: p1[i,1] += 2*arena_Y
-        else:
-          if p1[i,1] > arena_Y:
-            p1[i,1] = 2*arena_Y - p1[i,1]
-            v1[i,1] = -v1[i,1]
-          if p1[i,1] < -arena_Y:
-            p1[i,1] = -2*arena_Y - p1[i,1]
-            v1[i,1] = -v1[i,1]
+        # Crossing point
+        phi = cmath.phase(zv) + math.asin((z0.imag*math.cos(cmath.phase(zv)) - z0.real*math.sin(cmath.phase(zv)))/arena_X)
+        zc = cmath.rect(arena_X, phi)
 
-      # Third dimension
-      if dim>2:
-        if periodic_Z:
-          if p1[i,2] > arena_Z: p1[i,2] -= 2*arena_Z
-          if p1[i,2] < -arena_Z: p1[i,2] += 2*arena_Z
-        else:
-          if p1[i,2] > arena_Z:
-            p1[i,2] = 2*arena_Z - p1[i,2]
-            v1[i,2] = -v1[i,2]
-          if p1[i,2] < -arena_Z:
-            p1[i,2] = -2*arena_Z - p1[i,2]
-            v1[i,2] = -v1[i,2]
-    
+        # Position        
+        z1 = zc + (abs(zv)-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - cmath.phase(zv)))
+
+        # Velocity
+        zv = zv*cmath.exp(1j*(cmath.pi-2*(cmath.phase(zv)-phi)))
+
+    # Assign position and velocity
+    px = z1.real
+    py = z1.imag
+
+    vx = zv.real
+    vy = zv.imag
+
+  elif arena==1:  
+    '''
+    Rectangular arena
+    '''
+
+    # First dimension
+    if periodic_X:
+
+      if z1.real > arena_X: px = z1.real - 2*arena_X
+      elif z1.real < -arena_X: px = z1.real + 2*arena_X
+      else: px = z1.real
+
+      vx = zv.real
+
+    else:
+
+      if z1.real > arena_X:
+        px = 2*arena_X - z1.real
+        vx = -zv.real
+      elif z1.real < -arena_X:
+        px = -2*arena_X - z1.real
+        vx = -zv.real
+      else:
+        px = z1.real
+        vx = zv.real
+
+    # Second dimension
+    if periodic_Y:
+
+      if z1.imag > arena_Y: py = z1.imag - 2*arena_Y
+      elif z1.imag < -arena_Y: py = z1.imag + 2*arena_Y
+      else: py = z1.imag
+
+      vy = zv.imag
+
+    else:
+
+      if z1.imag > arena_Y:
+        py = 2*arena_Y - z1.imag
+        vy = -zv.imag
+      elif z1.imag < -arena_Y:
+        py = -2*arena_Y - z1.imag
+        vy = -zv.imag
+      else:
+        py = z1.imag
+        vy = zv.imag
+
+  return (px, py, vx, vy)
