@@ -1,4 +1,5 @@
 import re
+from screeninfo import get_monitors
 
 from Animation.Animation_2d import *
 from Animation.Colormap import *
@@ -178,6 +179,8 @@ class Animation2d(Animation_2d):
 
     # === Boundaries =======================================================
 
+    thickness = int(get_monitors()[0].width/1920)
+
     match self.engine.geom.arena:
 
       case 'circular':
@@ -187,12 +190,14 @@ class Animation2d(Animation_2d):
                    position = [0,0],
                    radius = self.engine.geom.arena_shape[0]/2,
                    colors = (None, 'grey'),
-                   linestyle = '--')
+                   linestyle = '--',
+                  thickness=thickness)
         else:
           self.add(circle, 'boundary', 
                    position = [0,0],
                    radius = self.engine.geom.arena_shape[0]/2,
-                   colors = (None, 'white'))
+                   colors = (None, 'white'),
+                  thickness=thickness)
 
       case 'rectangular':
         
@@ -207,19 +212,19 @@ class Animation2d(Animation_2d):
 
         # X-periodicity
         if self.engine.geom.periodic[0]:
-          self.add(line, 'boundary_left', points = pts_left, color = 'grey', linestyle = '--')
-          self.add(line, 'boundary_right', points = pts_right, color = 'grey', linestyle = '--')
+          self.add(line, 'boundary_left', points = pts_left, color = 'grey', linestyle = '--', thickness=thickness)
+          self.add(line, 'boundary_right', points = pts_right, color = 'grey', linestyle = '--', thickness=thickness)
         else:
-          self.add(line, 'boundary_left', points = pts_left, color = 'white')
-          self.add(line, 'boundary_right', points = pts_right, color = 'white')
+          self.add(line, 'boundary_left', points = pts_left, color = 'white', thickness=thickness)
+          self.add(line, 'boundary_right', points = pts_right, color = 'white', thickness=thickness)
 
         # X-periodicity
         if self.engine.geom.periodic[1]:
-          self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--')
-          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--')
+          self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--', thickness=thickness)
+          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--', thickness=thickness)
         else:
-          self.add(line, 'boundary_top', points = pts_top, color = 'white')
-          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white')
+          self.add(line, 'boundary_top', points = pts_top, color = 'white', thickness=thickness)
+          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white', thickness=thickness)
 
     # === Agents ===========================================================
 

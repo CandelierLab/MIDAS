@@ -6,7 +6,11 @@ It includes the RIPO and RINNO models.
 ## Installation via Conda:
 
 ```
-conda install numpy numba cudatoolkit matplotlib pyqt imageio[ffmpeg] 
+conda install numpy numba cudatoolkit matplotlib pyqt imageio[ffmpeg]
+```
+
+```
+pip install screeninfo
 ```
 
 + requires the Animation Toolbox.
