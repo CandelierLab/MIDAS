@@ -6,7 +6,7 @@ import math, cmath
 import time
 import numpy as np
 from numba import cuda
-import matplotlib.pyplot as plt
+from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_uniform_float32, xoroshiro128p_normal_float32
 
 from Animation.Window import Window
 import MIDAS.animation
@@ -95,22 +95,7 @@ class Geometry:
       vel = speeds[:,None]*tmp/np.sqrt(np.sum(tmp**2, axis=1))[:,None]
 
     return vel
-  
-  def vel2ang(self, vel):
-    '''
-    Velocity to orientation conversion
-    '''
-
-    match self.dimension:
-      case 1:
-        pass
-      case 2:
-        ang = np.angle(vel[:,0] + 1j*vel[:,1])[:,None]
-      case 3:
-        pass
-
-    return ang
-  
+    
 # === AGENTS ===============================================================
 
 class Agents:
@@ -136,11 +121,13 @@ class Agents:
     # Positions and velocities
     self.pos = np.empty((0, dimension))
     self.vel = np.empty((0, dimension))
-    self.ang = np.empty((0, dimension-1))
-    self.speed = np.empty(0)
 
-    # Angular noise
-    self.noise = np.empty(0)
+    # Noise
+    '''
+      0: velocity
+      (1,2): angular noises
+    '''
+    self.noise = np.empty((0, dimension))
 
     # Groups
     self.N_groups = 0    
@@ -220,9 +207,11 @@ class Engine:
     else:
       vel = np.array(initial_condition['velocity'])
     
-    # --- Orientations
+    # --- Noise
 
-    ang = self.geom.vel2ang(vel)
+    noise = np.ones((N,2), dtype=np.float32)
+    noise[:,0] = 0
+    noise[:,1] = 0.1
 
     # --- Agents definition ------------------------------------------------
 
@@ -235,8 +224,9 @@ class Engine:
     # Position and speed
     self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
     self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
-    self.agents.ang = np.concatenate((self.agents.ang, ang), axis=0)
-    self.agents.speed = np.concatenate((self.agents.speed, speed), axis=0)
+
+    # Noise
+    self.agents.noise = np.concatenate((self.agents.noise, noise), axis=0)
 
     # Groups
     if gname in self.agents.group_names:
@@ -287,7 +277,7 @@ class Engine:
       
       CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
-        self.cuda.noise, self.cuda.group, self.cuda.param)
+        self.cuda.noise, self.cuda.group, self.cuda.param, self.cuda.rng)
       
       cuda.synchronize()
       
@@ -298,7 +288,7 @@ class Engine:
 
       CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
-        self.cuda.noise, self.cuda.group, self.cuda.param)
+        self.cuda.noise, self.cuda.group, self.cuda.param, self.cuda.rng)
       
       cuda.synchronize()
       
@@ -324,6 +314,9 @@ class Engine:
     self.cuda.blockDim = 32
     self.cuda.gridDim = (self.agents.N_agents + (self.cuda.blockDim - 1)) // self.cuda.blockDim
 
+    # Random number generator
+    self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
+
     # Send arrays to device
     self.cuda.atype = cuda.to_device(self.agents.atype.astype(np.float32))
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
@@ -335,26 +328,54 @@ class Engine:
     self.cuda.p1 = cuda.device_array((self.agents.N_agents, self.geom.dimension), np.float32)
     self.cuda.v1 = cuda.device_array((self.agents.N_agents, self.geom.dimension), np.float32)
 
-    # --- Parameter serialization
+    # --- Parameter serialization ------------------------------------------
 
-    param = np.zeros(7, dtype=np.float32)
+    match self.geom.dimension:
 
-    # Arena shape
-    match self.geom.arena:
-      case 'circular': param[0] = 0
-      case 'rectangular': param[0] = 1
+      case 1:
 
-    # Arena size and periodicity
-    param[1] = self.geom.arena_shape[0]/2
-    param[4] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
+        param = np.zeros(3, dtype=np.float32)
 
-    if self.geom.dimension>1:
-      param[2] = self.geom.arena_shape[1]/2
-      param[5] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[1]
+        # Arena shape
+        param[0] = 0 if self.geom.arena=='circular' else 1
 
-    if self.geom.dimension>2:
-      param[3] = self.geom.arena_shape[2]/2
-      param[6] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[2]
+        # Arena size
+        param[1] = self.geom.arena_shape[0]/2
+
+        # Arena periodicity
+        param[2] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
+
+      case 2:
+
+        param = np.zeros(5, dtype=np.float32)
+
+        # Arena shape
+        param[0] = 0 if self.geom.arena=='circular' else 1
+
+        # Arena size
+        param[1] = self.geom.arena_shape[0]/2
+        param[2] = self.geom.arena_shape[1]/2
+
+        # Arena periodicity
+        param[3] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
+        param[4] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[1]
+
+      case 3:
+
+        param = np.zeros(7, dtype=np.float32)
+
+        # Arena shape
+        param[0] = 0 if self.geom.arena=='circular' else 1
+
+        # Arena size
+        param[1] = self.geom.arena_shape[0]/2
+        param[2] = self.geom.arena_shape[1]/2
+        param[3] = self.geom.arena_shape[2]/2
+
+        # Arena periodicity
+        param[4] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
+        param[5] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[1]
+        param[6] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[2]
 
     self.cuda.param = cuda.to_device(param.astype(np.float32))
 
@@ -394,13 +415,16 @@ class CUDA:
     self.atype = None
     self.noise = None
     self.group = None
+
+    # Random number generator
+    self.rng = None
     
 # --------------------------------------------------------------------------
 #   The CUDA kernel
 # --------------------------------------------------------------------------
 
 @cuda.jit
-def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param):
+def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param, rng):
   '''
   The CUDA kernel
   '''
@@ -419,31 +443,57 @@ def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param):
 
     # --- Deserialization of the parameters --------------------------------
 
-    # Arena
     '''
-    0: circular
-    1: rectangular
+    arena:
+      0: circular
+      1: rectangular
+    arena_X,Y,Z:
+      circular arena: radius
+      rectangular arena: width/2, height/2, depth/2
+    periodic_X,Y,Z:
+      0: reflexive
+      1: periodic
     '''
+
+    # Arena        
     arena = param[0]
 
-    # Arena shape
-    arena_X = param[1]
-    arena_Y = param[2]
-    arena_Z = param[3]
+    match dim:
 
-    # Arena periodicity
-    periodic_X = param[4]
-    periodic_Y = param[5]
-    periodic_Z = param[6]
+      case 1:
 
-    # if i==0:
-    #   # print(N, dim, arena, arena_X, periodic_X)
-    #   print(p0[i,0])
+        # Arena shape
+        arena_X = param[1]
+
+        # Arena periodicity
+        periodic_X = param[2]
+
+      case 2:
+
+        # Arena shape
+        arena_X = param[1]
+        arena_Y = param[2]
+
+        # Arena periodicity
+        periodic_X = param[3]
+        periodic_Y = param[4]
+
+      case 3:
+
+        # Arena shape
+        arena_X = param[1]
+        arena_Y = param[2]
+        arena_Z = param[3]
+
+        # Arena periodicity
+        periodic_X = param[4]
+        periodic_Y = param[5]
+        periodic_Z = param[6]
 
     # === Computation ======================================================
 
     # Polar coordinates
-    v, alpha = cmath.polar(complex(v0[i,0],v0[i,1]))
+    zv = complex(v0[i,0], v0[i,1])
 
     # --- Blind agents -----------------------------------------------------
 
@@ -458,7 +508,7 @@ def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param):
     vn = 0
 
     # Angular noise
-    an = 0
+    an = noise[i,1]*xoroshiro128p_normal_float32(rng, i)
 
     # --- Update -----------------------------------------------------------
 
@@ -466,15 +516,17 @@ def CUDA_step(i, atype, p0, v0, p1, v1, noise, group, param):
 
       case 2:
 
-        alpha += da + an
+        # Reorient
+        zv *= cmath.exp(1j*(da + an))
 
         # Candidate position and velocity
         z0 = complex(p0[i,0], p0[i,1])
-        zv = cmath.rect(v, alpha)
         z1 = z0 + zv
 
         # Boundary conditions
-        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, zv, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, zv, arena,
+                                                       arena_X, arena_Y,
+                                                       periodic_X, periodic_Y)
 
 # --------------------------------------------------------------------------
 #   Device functions
