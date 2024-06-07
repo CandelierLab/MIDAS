@@ -1,131 +1,10 @@
 import re
 from screeninfo import get_monitors
 
+from MIDAS.enums import *
+
 from Animation.Animation_2d import *
 from Animation.Colormap import *
-
-class piechart(composite):
-  """
-  Piechart composite element
-  """
-
-  def __init__(self, animation, name, **kwargs):
-    """
-    Piechart constructor
-    """  
-
-    super().__init__(animation, name, **kwargs)
-
-    # --- Arguments
-
-    self.radius = kwargs['radius'] if 'radius' in kwargs else 0.1
-    if 'values' in kwargs:
-      self.values = kwargs['values']
-      self.ns = len(self.values[0])
-    else:
-      self.values = None
-      self.ns = kwargs['ns'] if 'ns' in kwargs else 1
-    self.cmap = kwargs['cmap'] if 'cmap' in kwargs else Colormap()
-    self.delta = kwargs['delta'] if 'delta' in kwargs else 0
-    self.fontsize = kwargs['fontsize'] if 'fontsize' in kwargs else 8
-    self.ratio = kwargs['ratio'] if 'ratio' in kwargs else 0.6
-
-    # --- Items
-
-    # Orientation arrow
-    aname = self.name + '_dir'
-
-    self.animation.add(polygon, aname, parent=self.name,
-      points = [[self.radius, 0.01],[self.radius/2,-self.radius/2],[self.radius*3/2,-self.radius/2]],
-      colors = ('grey', None),
-    )
-
-    self.animation.item[aname].transformPoint = (self.radius, -self.radius)
-    self.animation.item[aname].orientation = self.delta
-
-    for i in range(self.ns):
-
-      # --- Background pie segment
-
-      # Color
-      color = self.val2color(self.values[1][i])
-
-      self.animation.add(circle, self.name + '_pie_{:d}_background'.format(i), parent=self.name,
-        position = (self.radius, -self.radius),
-        radius = self.radius,
-        span = (np.pi/2*(1+i*4/self.ns), 2*np.pi/self.ns),
-        colors = (color, None)
-      )
-
-      # --- Values
-
-      if self.values is not None:
-
-        name = self.name + '_text_{:d}'.format(i)
-        theta = (4*i+2+self.ns)*np.pi/2/self.ns
-        x = self.radius*(np.cos(theta) + 1)
-        y = self.radius*(np.sin(theta) - 1)
-
-        self.animation.add(text, name, parent=self.name,
-          position = (x, y),
-          string = '{:.01f}'.format(self.values[1][i]),
-          fontsize = self.fontsize,
-          color = 'black',
-          center = (False, True)
-        )
-
-        if theta>3*np.pi/2:
-          self.animation.item[name].position = (x-self.animation.item[name].width(), y)
-          self.animation.item[name].transformPoint = (self.animation.item[name].width(), -self.animation.item[name].height()/2)
-          self.animation.item[name].orientation = float(theta)
-        else:
-          self.animation.item[name].transformPoint = (0,-self.animation.item[name].height()/2)
-          self.animation.item[name].orientation = float(theta-np.pi)
-
-      # --- Foreground pie segment
-
-      # Color
-      color = self.val2color(self.values[0][i])
-
-      self.animation.add(circle, self.name + '_pie_{:d}_foreground'.format(i), parent=self.name,
-        position = (self.radius, -self.radius),
-        radius = self.radius*self.ratio,
-        span = (np.pi/2*(1+i*4/self.ns), 2*np.pi/self.ns),
-        colors = (color, None)
-      )
-
-      # --- Values
-
-      if self.values is not None:
-
-        name = self.name + '_text_{:d}'.format(i)
-        theta = (4*i+2+self.ns)*np.pi/2/self.ns
-        x = self.radius*(np.cos(theta)*self.ratio + 1)
-        y = self.radius*(np.sin(theta)*self.ratio - 1)
-
-        self.animation.add(text, name, parent=self.name,
-          position = (x, y),
-          string = '{:.01f}'.format(self.values[0][i]),
-          fontsize = self.fontsize,
-          color = 'black',
-          center = (False, True)
-        )
-
-        if theta>3*np.pi/2:
-          self.animation.item[name].position = (x-self.animation.item[name].width(), y)
-          self.animation.item[name].transformPoint = (self.animation.item[name].width(), -self.animation.item[name].height()/2)
-          self.animation.item[name].orientation = float(theta)
-        else:
-          self.animation.item[name].transformPoint = (0,-self.animation.item[name].height()/2)
-          self.animation.item[name].orientation = float(theta-np.pi)
-
-  def val2color(self, vcol):
-
-    if vcol>self.cmap.range[1]: vcol = self.cmap.range[1]
-    if vcol<self.cmap.range[0]: vcol = self.cmap.range[0]
-    vcol = np.sign(vcol)*np.sqrt(np.abs(vcol))
-
-    return self.cmap.qcolor(vcol)
 
 class Animation2d(Animation_2d):
     
@@ -159,14 +38,6 @@ class Animation2d(Animation_2d):
     # Trajectory trace
     self.trace_duration = None
 
-    # Colormaps
-    self.colormap = Colormap('hsv')
-    self.pie_cmap = Colormap('coolwarm')
-    self.pie_cmap.range = [-1.5,1.5]
-
-    # Timeline
-    self.timeline = {}
-
   # ------------------------------------------------------------------------
   #   Initialization
   # ------------------------------------------------------------------------
@@ -183,7 +54,7 @@ class Animation2d(Animation_2d):
 
     match self.engine.geom.arena:
 
-      case 'circular':
+      case Arena.CIRCULAR:
         
         if self.engine.geom.periodic:
           self.add(circle, 'boundary', 
@@ -199,7 +70,7 @@ class Animation2d(Animation_2d):
                    colors = (None, 'white'),
                   thickness=thickness)
 
-      case 'rectangular':
+      case Arena.RECTANGULAR:
         
         pts_left = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
                     [-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
@@ -319,18 +190,21 @@ class Animation2d(Animation_2d):
    
   def time_str(self):
 
-    s = '<p>step {:06d}</p>'.format(self.step)
+    pass
+    # s = '<p>step {:06d}</p>'.format(self.step)
 
-    # Grey zeros
-    s = re.sub(r'( )([0]+)', r'\1<span style="color:grey;">\2</span>', s)
+    # # Grey zeros
+    # s = re.sub(r'( )([0]+)', r'\1<span style="color:grey;">\2</span>', s)
 
-    # Agents that are not fixed
-    s += '<p>{:d} agents</p>'.format(np.count_nonzero([type(a)!=Fixed for a in self.engine.agents.list]))
+    # print('ok')
 
-    if not self.engine.periodic_boundary_condition:
-      s += '<p style="font-size:20px;">Bouncing boundary condition</p>'
+    # # Agents that are not fixed
+    # s += '<p>{:d} agents</p>'.format(np.count_nonzero(self.engine.agents.atype))
 
-    return s
+    # if not self.engine.periodic_boundary_condition:
+    #   s += '<p style="font-size:20px;">Bouncing boundary condition</p>'
+
+    # return s
 
   def add_info(self, agent=None):
 
@@ -386,11 +260,6 @@ class Animation2d(Animation_2d):
     
     # Update timer display
     super().update(t)
-
-    # Timeline changes
-    if t.step in self.timeline:
-      exec(self.timeline[t.step])
-      self.info_agent.update_info_weights()
 
     # Compute step
     self.engine.step(t.step)

@@ -9,7 +9,13 @@ from numba import cuda
 from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_float32
 
 from Animation.Window import Window
+
+from MIDAS.enums import *
 import MIDAS.animation
+
+import sys
+sys.path.append("/home/raphael/Science/Projects/Toolboxes/MIDAS/Programs/Python/test/")
+import test_ext
 
 # === GEOMETRY =============================================================
 
@@ -30,15 +36,15 @@ class Geometry:
     # --- Arena
 
     # Arena shape ('circular' or 'rectangular')
-    self.arena = kwargs['arena'] if 'arena' in kwargs else 'rectangular'
+    self.arena = kwargs['arena'] if 'arena' in kwargs else Arena.RECTANGULAR
     self.arena_shape =  kwargs['shape'] if 'shape' in kwargs else [1]*self.dimension
 
     # --- Boundary conditions
 
     match self.arena:
-      case 'circular':
+      case Arena.CIRCULAR:
         self.periodic = kwargs['periodic'] if 'periodic' in kwargs else True
-      case 'rectangular':
+      case Arena.RECTANGULAR:
         self.periodic = kwargs['periodic'] if 'periodic' in kwargs else [True]*self.dimension
   
   def set_initial_positions(self, ptype, n):
@@ -52,13 +58,13 @@ class Geometry:
 
       match self.arena:
 
-        case 'rectangular':
+        case Arena.RECTANGULAR:
 
           pos = (np.random.rand(n, self.dimension)-1/2)
           for d in range(self.dimension):
             pos[:,d] *= self.arena_shape[d]
 
-        case 'circular':
+        case Arena.CIRCULAR:
 
           # 2D
           match self.dimension:
@@ -171,6 +177,10 @@ class Engine:
 
     # Computation time reference
     self.tref = None
+
+    # --- Misc attributes
+    
+    self.verbose = True
 
   # ------------------------------------------------------------------------
   #   Add group
@@ -298,13 +308,27 @@ class Engine:
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
+    # --- End of simulation
+
+    if self.steps is not None and i==self.steps-1:
+
+      # End of simulation
+      if self.verbose:
+        print('→ End of simulation @ {:d} steps ({:.2f} s)'.format(self.steps, time.time()-self.tref))
+
+      # End display
+      if self.animation is not None:
+        self.animation.window.close()
+
   # ------------------------------------------------------------------------
   #   Run
   # ------------------------------------------------------------------------
 
   def run(self):
 
-    print(f'Running simulation with {self.steps} steps ...')
+    if self.verbose:
+      print('-'*50)
+      print(f'Running simulation with {self.steps} steps ...')
 
     # Reference time
     self.tref = time.time()
@@ -339,35 +363,35 @@ class Engine:
         param = np.zeros(3, dtype=np.float32)
 
         # Arena shape
-        param[0] = 0 if self.geom.arena=='circular' else 1
+        param[0] = self.geom.arena.value
 
         # Arena size
         param[1] = self.geom.arena_shape[0]/2
 
         # Arena periodicity
-        param[2] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
+        param[2] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
 
       case 2:
 
         param = np.zeros(5, dtype=np.float32)
 
         # Arena shape
-        param[0] = 0 if self.geom.arena=='circular' else 1
+        param[0] = self.geom.arena.value
 
         # Arena size
         param[1] = self.geom.arena_shape[0]/2
         param[2] = self.geom.arena_shape[1]/2
 
         # Arena periodicity
-        param[3] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
-        param[4] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[1]
+        param[3] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
+        param[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
 
       case 3:
 
         param = np.zeros(7, dtype=np.float32)
 
         # Arena shape
-        param[0] = 0 if self.geom.arena=='circular' else 1
+        param[0] = self.geom.arena.value
 
         # Arena size
         param[1] = self.geom.arena_shape[0]/2
@@ -375,9 +399,9 @@ class Engine:
         param[3] = self.geom.arena_shape[2]/2
 
         # Arena periodicity
-        param[4] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[0]
-        param[5] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[1]
-        param[6] = self.geom.periodic if self.geom.arena=='circular' else self.geom.periodic[2]
+        param[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
+        param[5] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
+        param[6] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[2]
 
     self.cuda.param = cuda.to_device(param.astype(np.float32))
 
@@ -436,6 +460,9 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
 
   if i<p0.shape[0]:
 
+    if i==0:
+      test_ext.test()
+
     N, dim = p0.shape
 
     # --- Fixed points -----------------------------------------------------
@@ -447,9 +474,6 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
     # --- Deserialization of the parameters --------------------------------
 
     '''
-    arena:
-      0: circular
-      1: rectangular
     arena_X,Y,Z:
       circular arena: radius
       rectangular arena: width/2, height/2, depth/2
@@ -502,9 +526,14 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
     # --- Blind agents -----------------------------------------------------
 
     if atype[i]==1:
+      dv = 0
       da = 0
 
-    # ... 
+    # --- RIPO agents ------------------------------------------------------
+
+    if atype[i]==2:
+
+      dv, da = RIPO_2d(i, p0, v0)
 
     # === Update ===========================================================
 
@@ -512,7 +541,8 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
 
       case 2:
 
-        # Reorientation
+        # Update velocity
+        v += dv
         alpha += da
 
         # --- Noise --------------------------------------------------------
@@ -537,7 +567,7 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
                                                        periodic_X, periodic_Y)
 
 # --------------------------------------------------------------------------
-#   Device functions
+#   Device assignation functions
 # --------------------------------------------------------------------------
 
 @cuda.jit(device=True)
@@ -546,7 +576,7 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
   if v==0:
     return (z1.real, z1.imag, v, alpha)
 
-  if arena==0:
+  if arena==Arena.CIRCULAR.value:
     '''
     Circular arena
     '''
@@ -580,7 +610,7 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
     py = z1.imag
 
 
-  elif arena==1:  
+  elif arena==Arena.RECTANGULAR.value:
     '''
     Rectangular arena
     '''
@@ -628,3 +658,15 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
     v, alpha = cmath.polar(complex(vx, vy))
 
   return (px, py, v, alpha)
+
+# --------------------------------------------------------------------------
+#   Device agents
+# --------------------------------------------------------------------------
+
+@cuda.jit(device=True)
+def RIPO_2d(i, p0, v0):
+  
+  dv = 0
+  da = 0
+
+  return (dv, da)

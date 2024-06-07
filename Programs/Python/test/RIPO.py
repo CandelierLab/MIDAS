@@ -1,9 +1,11 @@
 import os
 import numpy as np
 
+from MIDAS.enums import *
 from MIDAS.engine import Engine
 
 os.system('clear')
+
 
 # === Parameters ===========================================================
 
@@ -11,26 +13,28 @@ Nagents = 100
 
 # movieDir = project.root + '/Movies/TAPAs/'
 
-# # === Engine ===============================================================
+# === Engine ===============================================================
 
 E = Engine()
-# E = Engine(arena='circular', periodic=True)
-
-# # --- General settings
-
-# # Arena
-# E.boxSize = 1
-# E.periodic_boundary_condition = True
+# E = Engine(arena=Arena.CIRCULAR, periodic=True)
 
 # # Number of steps
-E.steps = 2
+E.steps = 100
 
-# # Verbose
-# E.verbose = None
+# Verbose
+# E.verbose = False
 
-# # === Agents ===============================================================
+# === Agents ===============================================================
 
-E.add_group('blind', Nagents, name='agents', vnoise=0.001)
+# --- Blind agents
+
+# E.add_group('blind', Nagents, name='agents', 
+#             anoise = 0.1,
+#             vnoise = 0.001)
+
+# --- RIPO agents
+
+E.add_group('RIPO', Nagents, name='agents')
 
 # nS = 4
 # rho = 0.2
@@ -85,7 +89,7 @@ E.setup_animation()
 
 # --- Agents settings 
 
-# E.animation.options['agents']['color'] = 'red'
+# E.animation.options['fixed']['color'] = 'grey'
 E.animation.options['agents']['cmap'] = 'hsv'
 # E.animation.options['agents']['cmap_on'] = 'index'
 
@@ -99,7 +103,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # # === Simulation ===========================================================
 
-# E.window.autoplay = False
+E.window.autoplay = False
 # # E.window.movieFile = movieDir + 'Donut.mp4'
 
 E.run()
