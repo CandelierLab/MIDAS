@@ -1,4 +1,9 @@
 Implement RIPO 2D
+  - Presence
+  - Orientation
+  - Custom
+  - Field
+
 
 Storage
   - Save to database
