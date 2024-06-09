@@ -144,7 +144,7 @@ class Animation2d(Animation_2d):
 
       # --- Shape
 
-      if self.engine.agents.atype[self.engine.agents.atype[i]]==0:
+      if self.engine.agents.atype[i]==Agent.FIXED:
         '''
         Fixed agents
         '''

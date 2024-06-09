@@ -2,35 +2,36 @@
 Enumerations
 '''
 
-from enum import Enum
+from enum import IntEnum
 import numpy as np
 
 # === Arena geometries =====================================================
 
-class Arena(Enum):
+class Arena(IntEnum):
   CIRCULAR = np.int32(0)
   RECTANGULAR = np.int32(1)
 
 # === Agent types ==========================================================
 
-class Agent(Enum):
+class Agent(IntEnum):
   FIXED = 0
   BLIND = 1
   RIPO = 2
   RINNO = 3
 
-# === Input types ==========================================================
+# === Radial input types ===================================================
 
-class Input(Enum):
+class RInput(IntEnum):
   NOISE = 0         # Gaussian noise
   WALLS = 1         # Walls
   PRESENCE = 2      # Presence (count agents)
   ORIENTATION = 3   # Average orientation 
   FIELD = 4         # Field
+  CUSTOM = 5        # Custom input
 
 # === Normalization ========================================================
 
-class Normalization(Enum):
+class Normalization(IntEnum):
   NONE = 0          # No normalization
-  SAME_RADIUS = 1   # Normalization over the sectors with the same radius
+  SAME_RADIUS = 1   # Normalization over sectors with the same radius
   ALL = 2           # Normalization over all sectors

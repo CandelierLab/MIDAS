@@ -1,15 +1,17 @@
 import os
 import numpy as np
+from numba import cuda
+
+
 
 from MIDAS.enums import *
 from MIDAS.engine import Engine
 
 os.system('clear')
 
-
 # === Parameters ===========================================================
 
-Nagents = 100
+# Nagents = 100
 
 # movieDir = project.root + '/Movies/TAPAs/'
 
@@ -19,7 +21,7 @@ E = Engine()
 # E = Engine(arena=Arena.CIRCULAR, periodic=True)
 
 # # Number of steps
-E.steps = 100
+E.steps = None
 
 # Verbose
 # E.verbose = False
@@ -28,20 +30,38 @@ E.steps = 100
 
 # --- Blind agents
 
-# E.add_group('blind', Nagents, name='agents', 
+# E.add_group(Agent.BLIND, Nagents, name='agents', 
 #             anoise = 0.1,
 #             vnoise = 0.001)
 
 # --- RIPO agents
 
-E.add_group('RIPO', Nagents, name='agents')
+@cuda.jit(device=True)
+def test_input():
+  print('ok')
 
-# nS = 4
-# rho = 0.2
+# Number of slices
+nS = 4
 
-# IC = {'position': None,
-#       'orientation': None,
-#       'speed': 0.01}
+# Radii of sectors
+rS = []
+
+# Initial conditions
+IC = {'position': [[0,0], [0.1,0.1]],
+      'orientation': [0, 0],
+      'speed': 0.01}
+
+# Coefficients
+coeffs = {}
+coeffs[RInput.PRESENCE] = [1,1,1,1]
+
+E.add_group(Agent.RIPO, len(IC['position']), name='agents',
+            initial_condition = IC,
+            nS = nS, rS = rS, coefficients=coeffs)
+
+
+
+
 
 # # --- RINNO weights --------------------------------------------------------
 

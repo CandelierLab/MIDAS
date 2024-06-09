@@ -13,9 +13,9 @@ from Animation.Window import Window
 from MIDAS.enums import *
 import MIDAS.animation
 
-import sys
-sys.path.append("/home/raphael/Science/Projects/Toolboxes/MIDAS/Programs/Python/test/")
-import test_ext
+# import sys
+# sys.path.append("/home/raphael/Science/Projects/Toolboxes/MIDAS/Programs/Python/test/")
+# import RIPO
 
 # === GEOMETRY =============================================================
 
@@ -109,14 +109,6 @@ class Agents:
     self.N_agents = 0
 
     # Types
-    '''
-    Agent atypes are:
-    0: Fixed
-    1: Blind
-    2: RIPO
-    3: RINNO
-    '''
-    self.atypes = ['fixed', 'blind', 'ripo', 'rinno']
     self.atype = np.empty(0, dtype=int)
 
     # Positions and velocities
@@ -189,14 +181,14 @@ class Engine:
   def add_group(self, gtype, N, **kwargs):
 
     # Group name
-    gname = kwargs['name'] if 'name' in kwargs else gtype
+    gname = kwargs['name'] if 'name' in kwargs else gtype.name
 
     # --- Initial conditions -----------------------------------------------
 
     # --- User definition
 
     if 'initial_condition' in kwargs:
-      initial_condition = kwargs['IC']
+      initial_condition = kwargs['initial_condition']
     else:
       initial_condition = {'position': None, 'orientation': None, 'speed': 0.01}
 
@@ -235,7 +227,7 @@ class Engine:
 
     # Agent type    
     self.agents.atype = np.concatenate((self.agents.atype, 
-                                        self.agents.atypes.index(gtype.lower())*np.ones(N, dtype=int)), axis=0)
+                                        gtype.value*np.ones(N, dtype=int)), axis=0)
 
     # Position and speed
     self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
@@ -460,14 +452,11 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
 
   if i<p0.shape[0]:
 
-    if i==0:
-      test_ext.test()
-
     N, dim = p0.shape
 
     # --- Fixed points -----------------------------------------------------
 
-    if atype[i]==0:
+    if atype[i]==Agent.FIXED.value:
       for j in range(dim):
         p1[i,j] = p0[i,j]
 
@@ -525,15 +514,16 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
 
     # --- Blind agents -----------------------------------------------------
 
-    if atype[i]==1:
+    if atype[i]==Agent.BLIND.value:
       dv = 0
       da = 0
 
     # --- RIPO agents ------------------------------------------------------
 
-    if atype[i]==2:
+    if atype[i]==Agent.RIPO.value:
 
-      dv, da = RIPO_2d(i, p0, v0)
+      # dv, da = RIPO_2d(i, p0, v0)
+      test_input()
 
     # === Update ===========================================================
 
@@ -663,10 +653,10 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
 #   Device agents
 # --------------------------------------------------------------------------
 
-@cuda.jit(device=True)
-def RIPO_2d(i, p0, v0):
+# @cuda.jit(device=True)
+# def RIPO_2d(i, p0, v0):
   
-  dv = 0
-  da = 0
+  # dv = 0
+  # da = 0
 
-  return (dv, da)
+  # return (dv, da)
