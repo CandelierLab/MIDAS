@@ -118,14 +118,12 @@ class Agents:
     '''
     self.pos = np.empty((0, dimension))
     self.vel = np.empty((0, dimension))
-    self.vlim = np.empty((0, 2))
 
-    # Noise
-    '''
-      0: velocity amplitude noise
-      (1,2): angular noises
-    '''
-    self.noise = np.empty((0, dimension))
+    # Agent parameters
+    self.aparam = np.empty((0, dimension+2))
+
+    # Group parameters
+    self.gparam = np.empty(0, dtype=np.float32)
 
     # Groups
     self.N_groups = 0    
@@ -173,6 +171,58 @@ class Engine:
     # --- Misc attributes
     
     self.verbose = True
+
+  # ------------------------------------------------------------------------
+  #   Parameter serialization
+  # ------------------------------------------------------------------------
+
+  def param_group_RIPO(self, **kwargs):
+
+    param = []
+
+    # --- Radii of sectors
+
+    if 'rS' in kwargs:
+
+      rS = np.sort(kwargs['rS'])
+      nR =  rS.size + 1 
+
+      param.append(nR)
+      [param.append(x) for x in rS]
+
+    else:
+      param.append(1)
+
+    # --- Angular  of slices
+
+    if self.geom.dimension>1:
+      nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
+      param.append(nSa)
+    else:
+      nSa = 1
+
+    if self.geom.dimension>2:
+      nSb = kwargs['nSb'] if 'nSb' in kwargs else 4
+      param.append(nSb)
+    else:
+      nSb = 1
+
+    # --- Coefficients    
+    '''
+    Each grid is composed of nS = nR*nSa*nSb sector.
+    The number of coefficients depends on the input types:
+    - Field: nS.nF
+    - Group: nS.nG (?)
+    '''
+
+    # Number of sectors
+    nS = nR*nSa*nSb
+
+
+   
+    print(param, nS)
+
+    return np.empty(0)
 
   # ------------------------------------------------------------------------
   #   Add group
@@ -232,10 +282,19 @@ class Engine:
     # Position and speed
     self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
     self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
-    self.agents.vlim = np.concatenate((self.agents.vlim, vlim), axis=0)
 
-    # Noise
-    self.agents.noise = np.concatenate((self.agents.noise, noise), axis=0)
+    # --- Other agent parameters ---
+
+    # Speed and noise
+    aparam = np.concatenate((vlim, noise), axis=1)
+
+    # Agent parameters
+    self.agents.aparam = np.concatenate((self.agents.aparam, aparam), axis=0)
+
+    # Group parameters
+    match gtype:
+      case Agent.RIPO:
+        self.agents.gparam = self.param_group_RIPO(**kwargs)
 
     # Groups
     if gname in self.agents.group_names:
@@ -280,9 +339,9 @@ class Engine:
     # Double-buffer computation trick
     if i % 2:
       
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype, self.cuda.group,
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom, i, self.cuda.atype, self.cuda.group,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
-        self.cuda.noise, self.cuda.vlim, self.cuda.param, self.cuda.rng)
+        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
       cuda.synchronize()
       
@@ -291,9 +350,9 @@ class Engine:
 
     else:
 
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](i, self.cuda.atype, self.cuda.group,
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom, i, self.cuda.atype, self.cuda.group,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
-        self.cuda.noise, self.cuda.vlim, self.cuda.param, self.cuda.rng)
+        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
       cuda.synchronize()
       
@@ -336,11 +395,11 @@ class Engine:
 
     # Send arrays to device
     self.cuda.atype = cuda.to_device(self.agents.atype.astype(np.float32))
+    self.cuda.group = cuda.to_device(self.agents.group.astype(np.float32))
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
-    self.cuda.vlim = cuda.to_device(self.agents.vlim.astype(np.float32))
-    self.cuda.noise = cuda.to_device(self.agents.noise.astype(np.float32))
-    self.cuda.group = cuda.to_device(self.agents.group.astype(np.float32))
+    self.cuda.aparam = cuda.to_device(self.agents.aparam.astype(np.float32))
+    self.cuda.gparam = cuda.to_device(self.agents.gparam.astype(np.float32))
 
     # Double buffers
     self.cuda.p1 = cuda.device_array((self.agents.N_agents, self.geom.dimension), np.float32)
@@ -352,50 +411,50 @@ class Engine:
 
       case 1:
 
-        param = np.zeros(3, dtype=np.float32)
+        geom = np.zeros(3, dtype=np.float32)
 
         # Arena shape
-        param[0] = self.geom.arena.value
+        geom[0] = self.geom.arena.value
 
         # Arena size
-        param[1] = self.geom.arena_shape[0]/2
+        geom[1] = self.geom.arena_shape[0]/2
 
         # Arena periodicity
-        param[2] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
+        geom[2] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
 
       case 2:
 
-        param = np.zeros(5, dtype=np.float32)
+        geom = np.zeros(5, dtype=np.float32)
 
         # Arena shape
-        param[0] = self.geom.arena.value
+        geom[0] = self.geom.arena.value
 
         # Arena size
-        param[1] = self.geom.arena_shape[0]/2
-        param[2] = self.geom.arena_shape[1]/2
+        geom[1] = self.geom.arena_shape[0]/2
+        geom[2] = self.geom.arena_shape[1]/2
 
         # Arena periodicity
-        param[3] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
-        param[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
+        geom[3] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
+        geom[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
 
       case 3:
 
-        param = np.zeros(7, dtype=np.float32)
+        geom = np.zeros(7, dtype=np.float32)
 
         # Arena shape
-        param[0] = self.geom.arena.value
+        geom[0] = self.geom.arena.value
 
         # Arena size
-        param[1] = self.geom.arena_shape[0]/2
-        param[2] = self.geom.arena_shape[1]/2
-        param[3] = self.geom.arena_shape[2]/2
+        geom[1] = self.geom.arena_shape[0]/2
+        geom[2] = self.geom.arena_shape[1]/2
+        geom[3] = self.geom.arena_shape[2]/2
 
         # Arena periodicity
-        param[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
-        param[5] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
-        param[6] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[2]
+        geom[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
+        geom[5] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
+        geom[6] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[2]
 
-    self.cuda.param = cuda.to_device(param.astype(np.float32))
+    self.cuda.geom = cuda.to_device(geom.astype(np.float32))
 
     # --- Main loop --------------------------------------------------------
 
@@ -420,8 +479,8 @@ class CUDA:
     self.blockDim = None
     self.gridDim = None
 
-    # Algorithm parameters
-    self.param = None
+    # Geometric parameters
+    self.geom = None
 
     # Double buffers
     self.p0 = None
@@ -432,8 +491,8 @@ class CUDA:
     # Other required arrays
     self.atype = None
     self.group = None
-    self.noise = None
-    self.vlim = None
+    self.aparam = None
+    self.gparam = None
 
     # Random number generator
     self.rng = None
@@ -443,7 +502,7 @@ class CUDA:
 # --------------------------------------------------------------------------
 
 @cuda.jit
-def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
+def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
   '''
   The CUDA kernel
   '''
@@ -454,14 +513,15 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
 
     N, dim = p0.shape
 
-    # --- Fixed points -----------------------------------------------------
+    # === Fixed points =====================================================
 
     if atype[i]==Agent.FIXED.value:
       for j in range(dim):
         p1[i,j] = p0[i,j]
 
-    # --- Deserialization of the parameters --------------------------------
+    # === Deserialization of the parameters ================================
 
+    # --- Geometric parameters ---------------------------------------------
     '''
     arena_X,Y,Z:
       circular arena: radius
@@ -472,39 +532,56 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
     '''
 
     # Arena        
-    arena = param[0]
+    arena = geom[0]
 
     match dim:
 
       case 1:
 
         # Arena shape
-        arena_X = param[1]
+        arena_X = geom[1]
 
         # Arena periodicity
-        periodic_X = param[2]
+        periodic_X = geom[2]
 
       case 2:
 
         # Arena shape
-        arena_X = param[1]
-        arena_Y = param[2]
+        arena_X = geom[1]
+        arena_Y = geom[2]
 
         # Arena periodicity
-        periodic_X = param[3]
-        periodic_Y = param[4]
+        periodic_X = geom[3]
+        periodic_Y = geom[4]
 
       case 3:
 
         # Arena shape
-        arena_X = param[1]
-        arena_Y = param[2]
-        arena_Z = param[3]
+        arena_X = geom[1]
+        arena_Y = geom[2]
+        arena_Z = geom[3]
 
         # Arena periodicity
-        periodic_X = param[4]
-        periodic_Y = param[5]
-        periodic_Z = param[6]
+        periodic_X = geom[4]
+        periodic_Y = geom[5]
+        periodic_Z = geom[6]
+
+    # --- Agent parameters -------------------------------------------------
+    '''
+    Agents parameters 
+    ├── vlim: speed limits (size=2)
+    ├── Noise: speed, alpha, beta (size=dim)
+    ├── ... (see below for parameters based on each agent type)
+    '''
+
+    # Velocity limits
+    vmin = aparam[i,0]
+    vmax = aparam[i,1]
+
+    # Noise
+    vnoise = aparam[i,2]
+    if dim>1: anoise = aparam[i,3]
+    if dim>2: bnoise = aparam[i,4]
 
     # === Computation ======================================================
 
@@ -522,8 +599,37 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
 
     if atype[i]==Agent.RIPO.value:
 
+      # === Deserialization of the RIPO parameters ===
+      '''
+      RIPO
+      ├── nR        (1)
+      ├── radii     (nR-1)
+      ├── nSa       (1, if dim>1) 
+      ├── nSb       (1, if dim>2)
+      ├── coeffs
+      ├── Output
+      '''
+
+      # Number of slices
+      # nS = gparam[i, dim+2]
+
+      # # Radial limits
+      # nR = gparam[i, dim+3]
+      
+
+      # a=cuda.local.array(shape=1,dtype=numba.float64)
+      
+      # === Inputs ===
+
+      IN = 0
+
+      # === Processing ===
+
+      da = 0
+      dv = 0
+
       # dv, da = RIPO_2d(i, p0, v0)
-      test_input()
+      pass      
 
     # === Update ===========================================================
 
@@ -538,14 +644,14 @@ def CUDA_step(i, atype, group, p0, v0, p1, v1, noise, vlim, param, rng):
         # --- Noise --------------------------------------------------------
 
         # Speed noise
-        if noise[i,0]:
-          v += noise[i,0]*xoroshiro128p_normal_float32(rng, i)
-          if v < vlim[i,0]: v = vlim[i,0]
-          elif v > vlim[i,1]: v = vlim[i,1]
+        if vnoise:
+          v += vnoise*xoroshiro128p_normal_float32(rng, i)
+          if v < vmin: v = vmin
+          elif v > vmax: v = vmax
 
         # Angular noise
-        if noise[i,1]:
-          alpha += noise[i,1]*xoroshiro128p_normal_float32(rng, i)
+        if anoise:
+          alpha += anoise*xoroshiro128p_normal_float32(rng, i)
 
         # Candidate position and velocity
         z0 = complex(p0[i,0], p0[i,1])

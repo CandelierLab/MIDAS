@@ -35,3 +35,9 @@ class Normalization(IntEnum):
   NONE = 0          # No normalization
   SAME_RADIUS = 1   # Normalization over sectors with the same radius
   ALL = 2           # Normalization over all sectors
+
+# === Activation fuctions ==================================================
+
+class Activation(IntEnum):
+  OUTPUT_ANGLE = 0         # Angular activation
+  OUTPUT_SPEED = 1         # Speed activation

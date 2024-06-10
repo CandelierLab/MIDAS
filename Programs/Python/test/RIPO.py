@@ -2,8 +2,6 @@ import os
 import numpy as np
 from numba import cuda
 
-
-
 from MIDAS.enums import *
 from MIDAS.engine import Engine
 
@@ -36,32 +34,27 @@ E.steps = None
 
 # --- RIPO agents
 
-@cuda.jit(device=True)
-def test_input():
-  print('ok')
-
-# Number of slices
-nS = 4
-
 # Radii of sectors
 rS = []
+
+# Number of slices
+nSa = 4
+
+# Coefficients
+coeffs = {}
+coeffs[RInput.PRESENCE] = [1,1,1,1]
+
+# Outputs
+output = [Activation.OUTPUT_ANGLE]
 
 # Initial conditions
 IC = {'position': [[0,0], [0.1,0.1]],
       'orientation': [0, 0],
       'speed': 0.01}
 
-# Coefficients
-coeffs = {}
-coeffs[RInput.PRESENCE] = [1,1,1,1]
-
 E.add_group(Agent.RIPO, len(IC['position']), name='agents',
             initial_condition = IC,
-            nS = nS, rS = rS, coefficients=coeffs)
-
-
-
-
+            nSa = nSa, rS = rS, coefficients=coeffs, output=output)
 
 # # --- RINNO weights --------------------------------------------------------
 
