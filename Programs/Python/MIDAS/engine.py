@@ -5,6 +5,7 @@ MIDAS Engine
 import math, cmath
 import time
 import numpy as np
+import numba as nb
 from numba import cuda
 from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_float32
 
@@ -106,29 +107,115 @@ class Agents:
 
   def __init__(self, dimension):
   
-    self.N_agents = 0
+    # Number of agents
+    self.N = 0
 
     # Types
     self.atype = np.empty(0, dtype=int)
 
     # Positions and velocities
     '''
-    Position are expressed in cartesian cooridnates (x,y,z)
+    Position are expressed in cartesian coordinates (x,y,z)
     Velocities are expressed in polar coordinates (v,alpha,beta)
     '''
     self.pos = np.empty((0, dimension))
     self.vel = np.empty((0, dimension))
 
     # Agent parameters
-    self.aparam = np.empty((0, dimension+2))
-
-    # Group parameters
-    self.gparam = np.empty(0, dtype=np.float32)
+    self.param = np.empty((0, dimension+2))
 
     # Groups
-    self.N_groups = 0    
-    self.group_names = []
     self.group = np.empty(0, dtype=int)
+
+# === GROUPS ===============================================================
+
+class Groups:
+  '''
+  Subcollection of agents
+  
+  NB: All agents in a group have the same type
+  '''
+
+  def __init__(self, dimension):
+  
+    self.dimension = dimension
+
+    # Number of groups
+    self.N = 0
+
+    # Group names
+    self.names = []
+
+    # Types of the agents in each group
+    self.atype = np.empty(0, dtype=int)
+    
+    # Group parameters
+    self.param = np.empty(0, dtype=np.float32)
+
+  # ------------------------------------------------------------------------
+  #   Parameter serialization
+  # ------------------------------------------------------------------------
+
+  def add_RIPO(self, **kwargs):
+
+    param = []
+
+    # --- Radii of sectors
+
+    if 'rS' in kwargs:
+
+      rS = np.sort(kwargs['rS'])
+      nR =  rS.size + 1 
+
+      param.append(nR)
+      [param.append(x) for x in rS]
+
+    else:
+      param.append(1)
+
+    # --- Angular slices
+
+    if self.dimension>1:
+      nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
+      param.append(nSa)
+    else:
+      nSa = 1
+
+    if self.dimension>2:
+      nSb = kwargs['nSb'] if 'nSb' in kwargs else 4
+      param.append(nSb)
+    else:
+      nSb = 1
+
+    # --- Coefficients    
+    '''
+    Each grid is composed of nS = nR*nSa*nSb sector.
+    The number of coefficients depends on the input types:
+    - Walls: nS
+    - Field: nS.nF
+    - Group: nS.nG^2
+    '''
+
+    for k, C in kwargs['coefficients'].items():
+      param.append(k.value)
+      [param.append(c) for c in C]
+   
+    print(param)
+
+    # Convert to numpy
+    param = np.array(param, dtype=np.float32)
+
+    if self.param.size:
+      if self.param.shape[1]>param.size:
+        param = np.resize(param, self.param.shape[1])
+      elif self.param.shape[1]<param.size:
+        self.param = np.resize(self.param, (self.param.shape[0], param.size))
+        
+        self.param = np.concatenate((self.param, param[None,:]), axis=0)
+    else:
+      self.param = param[None,:]
+
+    print(self.param)
 
 # === ENGINE ===============================================================
 
@@ -152,6 +239,7 @@ class Engine:
 
     self.geom = Geometry(dimension, **kwargs)
     self.agents = Agents(dimension)
+    self.groups = Groups(dimension)
     
     # Associated animation
     self.window = None
@@ -171,58 +259,6 @@ class Engine:
     # --- Misc attributes
     
     self.verbose = True
-
-  # ------------------------------------------------------------------------
-  #   Parameter serialization
-  # ------------------------------------------------------------------------
-
-  def param_group_RIPO(self, **kwargs):
-
-    param = []
-
-    # --- Radii of sectors
-
-    if 'rS' in kwargs:
-
-      rS = np.sort(kwargs['rS'])
-      nR =  rS.size + 1 
-
-      param.append(nR)
-      [param.append(x) for x in rS]
-
-    else:
-      param.append(1)
-
-    # --- Angular  of slices
-
-    if self.geom.dimension>1:
-      nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
-      param.append(nSa)
-    else:
-      nSa = 1
-
-    if self.geom.dimension>2:
-      nSb = kwargs['nSb'] if 'nSb' in kwargs else 4
-      param.append(nSb)
-    else:
-      nSb = 1
-
-    # --- Coefficients    
-    '''
-    Each grid is composed of nS = nR*nSa*nSb sector.
-    The number of coefficients depends on the input types:
-    - Field: nS.nF
-    - Group: nS.nG (?)
-    '''
-
-    # Number of sectors
-    nS = nR*nSa*nSb
-
-
-   
-    print(param, nS)
-
-    return np.empty(0)
 
   # ------------------------------------------------------------------------
   #   Add group
@@ -273,7 +309,7 @@ class Engine:
 
     # --- Agents definition ------------------------------------------------
 
-    self.agents.N_agents += N
+    self.agents.N += N
 
     # Agent type    
     self.agents.atype = np.concatenate((self.agents.atype, 
@@ -289,20 +325,21 @@ class Engine:
     aparam = np.concatenate((vlim, noise), axis=1)
 
     # Agent parameters
-    self.agents.aparam = np.concatenate((self.agents.aparam, aparam), axis=0)
+    self.agents.param = np.concatenate((self.agents.param, aparam), axis=0)
 
-    # Group parameters
+    # --- Group definition -------------------------------------------------
+    
     match gtype:
       case Agent.RIPO:
-        self.agents.gparam = self.param_group_RIPO(**kwargs)
+        self.groups.add_RIPO(**kwargs)
 
     # Groups
-    if gname in self.agents.group_names:
-      iname = self.agents.group_names.index(gname)
+    if gname in self.groups.names:
+      iname = self.groups.names.index(gname)
     else:
-      iname = len(self.agents.group_names)
-      self.agents.group_names.append(gname)
-      self.agents.N_groups += 1
+      iname = len(self.groups.names)
+      self.groups.names.append(gname)
+      self.groups.N += 1
 
     self.agents.group = np.concatenate((self.agents.group, iname*np.ones(N, dtype=int)), axis=0)
 
@@ -388,7 +425,7 @@ class Engine:
     
     # Threads and blocks
     self.cuda.blockDim = 32
-    self.cuda.gridDim = (self.agents.N_agents + (self.cuda.blockDim - 1)) // self.cuda.blockDim
+    self.cuda.gridDim = (self.agents.N + (self.cuda.blockDim - 1)) // self.cuda.blockDim
 
     # Random number generator
     self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
@@ -398,12 +435,12 @@ class Engine:
     self.cuda.group = cuda.to_device(self.agents.group.astype(np.float32))
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
-    self.cuda.aparam = cuda.to_device(self.agents.aparam.astype(np.float32))
-    self.cuda.gparam = cuda.to_device(self.agents.gparam.astype(np.float32))
+    self.cuda.aparam = cuda.to_device(self.agents.param.astype(np.float32))
+    self.cuda.gparam = cuda.to_device(self.groups.param.astype(np.float32))
 
     # Double buffers
-    self.cuda.p1 = cuda.device_array((self.agents.N_agents, self.geom.dimension), np.float32)
-    self.cuda.v1 = cuda.device_array((self.agents.N_agents, self.geom.dimension), np.float32)
+    self.cuda.p1 = cuda.device_array((self.agents.N, self.geom.dimension), np.float32)
+    self.cuda.v1 = cuda.device_array((self.agents.N, self.geom.dimension), np.float32)
 
     # --- Parameter serialization ------------------------------------------
 
@@ -493,6 +530,9 @@ class CUDA:
     self.group = None
     self.aparam = None
     self.gparam = None
+    
+    # Radial Input specifics
+    self.rS = None
 
     # Random number generator
     self.rng = None
@@ -603,18 +643,34 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
       '''
       RIPO
       ├── nR        (1)
-      ├── radii     (nR-1)
+      ├── rS        (nR-1)
       ├── nSa       (1, if dim>1) 
       ├── nSb       (1, if dim>2)
       ├── coeffs
       ├── Output
       '''
 
-      # Number of slices
-      # nS = gparam[i, dim+2]
+      # --- Radial limits
 
-      # # Radial limits
-      # nR = gparam[i, dim+3]
+      # Number of sectors per slice
+      nR = int(gparam[0])
+
+      # Sectors' radii
+      rS = cuda.local.array(shape=32, dtype=nb.float32)
+      for j in range(nR-1):
+        rS[j] = gparam[j+1]
+
+      # --- Angular slices
+
+      nSa = gparam[nR] if dim>1 else 1
+      nSb = gparam[nR+1] if dim>2 else 1
+
+      # --- Coefficients
+
+      k = nR + dim
+
+      print(k)
+      
       
 
       # a=cuda.local.array(shape=1,dtype=numba.float64)

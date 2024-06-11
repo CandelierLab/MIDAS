@@ -26,7 +26,7 @@ class Animation2d(Animation_2d):
 
     # Default display options
     self.options = {}
-    for k in self.engine.agents.group_names:
+    for k in self.engine.groups.names:
       self.options[k] = {
         'color': 'white', 
         'cmap': None,
@@ -102,10 +102,10 @@ class Animation2d(Animation_2d):
     # Agent's triangle shape
     pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
 
-    for i in range(self.engine.agents.N_agents):
+    for i in range(self.engine.agents.N):
 
       # Group options
-      opt = self.options[self.engine.agents.group_names[self.engine.agents.group[i]]]
+      opt = self.options[self.engine.groups.names[self.engine.agents.group[i]]]
 
       # --- Color
 
@@ -284,7 +284,7 @@ class Animation2d(Animation_2d):
     Update display
     '''
     
-    for i in range(self.engine.agents.N_agents):
+    for i in range(self.engine.agents.N):
 
       # Skip fixed agents
       if self.engine.agents.atype[i]==0: continue

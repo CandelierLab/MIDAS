@@ -44,7 +44,7 @@ nSa = 4
 coeffs = {}
 coeffs[RInput.PRESENCE] = [1,1,1,1]
 
-# Outputs
+# Outputs 
 output = [Activation.OUTPUT_ANGLE]
 
 # Initial conditions
@@ -55,6 +55,14 @@ IC = {'position': [[0,0], [0.1,0.1]],
 E.add_group(Agent.RIPO, len(IC['position']), name='agents',
             initial_condition = IC,
             nSa = nSa, rS = rS, coefficients=coeffs, output=output)
+
+# Coefficients
+coeffs = {}
+coeffs[RInput.PRESENCE] = [1,1,1,1,1]
+
+E.add_group(Agent.RIPO, len(IC['position']), name='agents',
+            initial_condition = IC,
+            nSa = nSa+1, rS = rS, coefficients=coeffs, output=output)
 
 # # --- RINNO weights --------------------------------------------------------
 
