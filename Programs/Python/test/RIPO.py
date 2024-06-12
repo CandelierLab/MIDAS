@@ -58,11 +58,16 @@ E.add_group(Agent.RIPO, len(IC['position']), name='agents',
 
 # Coefficients
 coeffs = {}
-coeffs[RInput.PRESENCE] = [1,1,1,1,1]
+coeffs[RInput.PRESENCE] = [1,1,1,1,1,1]
+
+# Initial conditions
+IC = {'position': [[0,-0.1], [0.1,-0.1]],
+      'orientation': [0, 0],
+      'speed': 0.01}
 
 E.add_group(Agent.RIPO, len(IC['position']), name='agents',
             initial_condition = IC,
-            nSa = nSa+1, rS = rS, coefficients=coeffs, output=output)
+            nSa = nSa+2, rS = rS, coefficients=coeffs, output=output)
 
 # # --- RINNO weights --------------------------------------------------------
 

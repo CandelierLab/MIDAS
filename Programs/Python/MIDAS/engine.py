@@ -200,22 +200,20 @@ class Groups:
       param.append(k.value)
       [param.append(c) for c in C]
    
-    print(param)
-
     # Convert to numpy
     param = np.array(param, dtype=np.float32)
 
     if self.param.size:
       if self.param.shape[1]>param.size:
-        param = np.resize(param, self.param.shape[1])
+        param = np.pad(param, (0,self.param.shape[1]-param.size))
       elif self.param.shape[1]<param.size:
-        self.param = np.resize(self.param, (self.param.shape[0], param.size))
+        self.param = np.pad(self.param, ((0,0),(0,param.size-self.param.shape[1])))
         
         self.param = np.concatenate((self.param, param[None,:]), axis=0)
     else:
       self.param = param[None,:]
 
-    print(self.param)
+    # print(self.param)
 
 # === ENGINE ===============================================================
 
@@ -417,6 +415,8 @@ class Engine:
     if self.verbose:
       print('-'*50)
       print(f'Running simulation with {self.steps} steps ...')
+
+      print(self.groups.param)
 
     # Reference time
     self.tref = time.time()
@@ -639,6 +639,9 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
 
     if atype[i]==Agent.RIPO.value:
 
+      # Group id
+      gid = int(group[i])
+
       # === Deserialization of the RIPO parameters ===
       '''
       RIPO
@@ -653,17 +656,15 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
       # --- Radial limits
 
       # Number of sectors per slice
-      nR = int(gparam[0])
+      nR = int(gparam[gid, 0])
 
-      # Sectors' radii
-      rS = cuda.local.array(shape=32, dtype=nb.float32)
-      for j in range(nR-1):
-        rS[j] = gparam[j+1]
+      # Sectors' radii first element
+      rS0 = 1 if nR>1 else None
 
       # --- Angular slices
 
-      nSa = gparam[nR] if dim>1 else 1
-      nSb = gparam[nR+1] if dim>2 else 1
+      nSa = gparam[gid, nR] if dim>1 else 1
+      nSb = gparam[gid, nR+1] if dim>2 else 1
 
       # --- Coefficients
 
