@@ -2,6 +2,7 @@
 MIDAS Engine
 '''
 
+import warnings
 import math, cmath
 import time
 import numpy as np
@@ -44,7 +45,16 @@ class Geometry:
 
     match self.arena:
       case Arena.CIRCULAR:
-        self.periodic = kwargs['periodic'] if 'periodic' in kwargs else True
+        '''
+        NB: Periodic boundary conditions are not possible with a circular arena.
+        Though coherent rules for a single agent are possible, it seems
+        impossible to maintain a constant distance between two agents that are
+        moving in parallel for instance, so distances are not conserved.
+        '''
+        if 'periodic' in kwargs and kwargs['periodic']:
+          warnings.warn('Periodic boundary conditions are not possible with a circular arena. Switching to reflexive boundary conditions.')
+        self.periodic = False
+
       case Arena.RECTANGULAR:
         self.periodic = kwargs['periodic'] if 'periodic' in kwargs else [True]*self.dimension
   
@@ -172,6 +182,13 @@ class Groups:
 
     else:
       param.append(1)
+
+    # --- Maximal radius
+
+    if 'rmax' in kwargs and kwargs['rmax'] is not None:
+      param.append(kwargs['rmax'])
+    else:
+      param.append(0)
 
     # --- Angular slices
 
@@ -507,7 +524,7 @@ class Engine:
       self.animation.initialize()
       self.window.show()
 
-# === CUDA ===============================================================
+# === CUDA =================================================================
 
 class CUDA:
 
@@ -536,7 +553,17 @@ class CUDA:
 
     # Random number generator
     self.rng = None
-    
+
+############################################################################
+############################################################################
+# #                                                                      # #
+# #                                                                      # #
+# #                        DEVICE FUNCTIONS                              # #
+# #                                                                      # #
+# #                                                                      # #
+############################################################################
+############################################################################
+
 # --------------------------------------------------------------------------
 #   The CUDA kernel
 # --------------------------------------------------------------------------
@@ -627,7 +654,7 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
 
     # Polar coordinates
     v = v0[i,0]
-    alpha = v0[i,1]
+    a = v0[i,1]
 
     # --- Blind agents -----------------------------------------------------
 
@@ -645,12 +672,13 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
       # === Deserialization of the RIPO parameters ===
       '''
       RIPO
-      ├── nR        (1)
-      ├── rS        (nR-1)
-      ├── nSa       (1, if dim>1) 
-      ├── nSb       (1, if dim>2)
-      ├── coeffs
-      ├── Output
+      ├── nR          (1)
+      ├── rS          (nR-1)
+      ├── nSa         (1, if dim>1) 
+      ├── nSb         (1, if dim>2)
+      ├── Input type  (1)
+      ├── coeffs      (var)
+      ├── Output      (?)
       '''
 
       # --- Radial limits
@@ -661,18 +689,30 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
       # Sectors' radii first element
       rS0 = 1 if nR>1 else None
 
+      # Maximal radius
+      rmax = gparam[gid, nR] if gparam[gid, nR]>0 else None
+
       # --- Angular slices
 
-      nSa = gparam[gid, nR] if dim>1 else 1
-      nSb = gparam[gid, nR+1] if dim>2 else 1
-
-      # --- Coefficients
+      nSa = gparam[gid, nR+1] if dim>1 else 1
+      nSb = gparam[gid, nR+2] if dim>2 else 1
 
       k = nR + dim
 
-      print(k)
-      
-      
+      # === Interactions ===================================================
+
+      for j in range(N):
+
+        # Skip self-perception
+        if i==j: continue
+
+        # Distance and relative orientation
+        z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+
+        if not status:
+          print('None')
+        else:
+          print(z.real, z.imag, alpha)
 
       # a=cuda.local.array(shape=1,dtype=numba.float64)
       
@@ -696,7 +736,7 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
 
         # Update velocity
         v += dv
-        alpha += da
+        a += da
 
         # --- Noise --------------------------------------------------------
 
@@ -708,26 +748,68 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
 
         # Angular noise
         if anoise:
-          alpha += anoise*xoroshiro128p_normal_float32(rng, i)
+          a += anoise*xoroshiro128p_normal_float32(rng, i)
 
         # Candidate position and velocity
         z0 = complex(p0[i,0], p0[i,1])
-        z1 = z0 + cmath.rect(v, alpha)
+        z1 = z0 + cmath.rect(v, a)
 
         # Boundary conditions
-        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, alpha, arena,
+        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, a, arena,
                                                        arena_X, arena_Y,
                                                        periodic_X, periodic_Y)
 
 # --------------------------------------------------------------------------
-#   Device assignation functions
+#   Boundary conditions
 # --------------------------------------------------------------------------
 
 @cuda.jit(device=True)
-def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+  '''
+  Relative position and orientation between two agents
+  The output is tuple (z, alpha, status) containing the relative complex polar
+  coordinates z, the relative orientation alpha and the visibility status.
+  NB: in case the distance is above rmax, (0,0,False) is returned
+  '''
+  
+  if arena==Arena.CIRCULAR.value:
+    '''
+    Circular arena
+    '''
+
+    # Complex polar coordinates
+    z = complex(x1-x0, y1-y0)
+
+  elif arena==Arena.RECTANGULAR.value:
+    '''
+    Rectangular arena
+    '''
+
+    # dx
+    if periodic_X:
+      dx = x1-x0 if abs(x1-x0)<=arena_X else ( x1-x0-2*arena_X if x1>x0 else x1-x0+2*arena_X )
+    else:
+      dx = x1-x0
+
+    # dy
+    if periodic_Y:
+      dy = y1-y0 if abs(y1-y0)<=arena_Y else ( y1-y0-2*arena_Y if y1>y0 else y1-y0+2*arena_Y )
+    else:
+      dy = y1-y0
+
+    # Complex polar coordinates
+    z = complex(dx, dy)
+
+  # Out of sight agents
+  if rmax is not None and abs(z)>rmax: return (0, 0, False)
+
+  return (z, a1-a0, True)
+
+@cuda.jit(device=True)
+def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   
   if v==0:
-    return (z1.real, z1.imag, v, alpha)
+    return (z1.real, z1.imag, v, a)
 
   if arena==Arena.CIRCULAR.value:
     '''
@@ -736,29 +818,22 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
 
     # Check for outsiders
     if abs(z1) > arena_X:
+      '''
+      Reflexive circular
+      (Periodic boundary conditions are not possible with a circular arena)
+      '''
 
-      if periodic_X:
-        '''
-        Periodic circular
-        '''
-        z1 = cmath.rect(2*arena_X-abs(z1), cmath.phase(z1)+cmath.pi)
-        
-      else:
-        '''
-        Reflexive circular
-        '''
+      # Crossing point
+      phi = a + math.asin((z0.imag*math.cos(a) - z0.real*math.sin(a))/arena_X)
+      zc = cmath.rect(arena_X, phi)
 
-        # Crossing point
-        phi = alpha + math.asin((z0.imag*math.cos(alpha) - z0.real*math.sin(alpha))/arena_X)
-        zc = cmath.rect(arena_X, phi)
+      # Position        
+      z1 = zc + (v-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - a))
 
-        # Position        
-        z1 = zc + (v-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - alpha))
+      # Final velocity
+      a += cmath.pi-2*(a-phi)
 
-        # Final velocity
-        alpha += cmath.pi-2*(alpha-phi)
-
-    # Finam position
+    # Final position
     px = z1.real
     py = z1.imag
 
@@ -768,7 +843,7 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
     Rectangular arena
     '''
 
-    zv = cmath.rect(v, alpha)
+    zv = cmath.rect(v, a)
     vx = zv.real
     vy = zv.imag
 
@@ -808,18 +883,6 @@ def assign_2d(z0, z1, v, alpha, arena, arena_X, arena_Y, periodic_X, periodic_Y)
       else:
         py = z1.imag
 
-    v, alpha = cmath.polar(complex(vx, vy))
+    v, a = cmath.polar(complex(vx, vy))
 
-  return (px, py, v, alpha)
-
-# --------------------------------------------------------------------------
-#   Device agents
-# --------------------------------------------------------------------------
-
-# @cuda.jit(device=True)
-# def RIPO_2d(i, p0, v0):
-  
-  # dv = 0
-  # da = 0
-
-  # return (dv, da)
+  return (px, py, v, a)

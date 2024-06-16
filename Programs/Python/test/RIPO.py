@@ -16,7 +16,7 @@ os.system('clear')
 # === Engine ===============================================================
 
 E = Engine()
-# E = Engine(arena=Arena.CIRCULAR, periodic=True)
+# E = Engine(arena=Arena.CIRCULAR)
 
 # # Number of steps
 E.steps = None
@@ -48,26 +48,14 @@ coeffs[RInput.PRESENCE] = [1,1,1,1]
 output = [Activation.OUTPUT_ANGLE]
 
 # Initial conditions
-IC = {'position': [[0,0], [0.1,0.1]],
+IC = {'position': [[-0.3,-0.3], [0.3,0.3]],
       'orientation': [0, 0],
       'speed': 0.01}
 
-E.add_group(Agent.RIPO, len(IC['position']), name='agents',
-            initial_condition = IC,
-            nSa = nSa, rS = rS, coefficients=coeffs, output=output)
-
-# Coefficients
-coeffs = {}
-coeffs[RInput.PRESENCE] = [1,1,1,1,1,1]
-
-# Initial conditions
-IC = {'position': [[0,-0.1], [0.1,-0.1]],
-      'orientation': [0, 0],
-      'speed': 0.01}
 
 E.add_group(Agent.RIPO, len(IC['position']), name='agents',
             initial_condition = IC,
-            nSa = nSa+2, rS = rS, coefficients=coeffs, output=output)
+            nSa = nSa, rS = rS, rmax = None, coefficients=coeffs, output=output)
 
 # # --- RINNO weights --------------------------------------------------------
 
