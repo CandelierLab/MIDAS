@@ -17,24 +17,30 @@ class Agent(IntEnum):
   FIXED = 0
   BLIND = 1
   RIPO = 2
-  RINNO = 3
 
 # === Radial input types ===================================================
 
 class RInput(IntEnum):
-  NOISE = 0         # Gaussian noise
-  WALLS = 1         # Walls
-  PRESENCE = 2      # Presence (count agents)
-  ORIENTATION = 3   # Average orientation 
-  FIELD = 4         # Field
-  CUSTOM = 5        # Custom input
+
+  # Agent-dependent
+  PRESENCE = 100          # Presence (count agents)
+  ORIENTATION = 101       # Average orientation 
+  FIELD_AGENTS = 102      # Field
+  CUSTOM_AGENTS = 103     # Custom input
+
+  # Non agent-dependent
+  NOISE = 104         # Gaussian noise
+  WALLS = 105         # Walls
+  FIELD = 106         # Field
+  CUSTOM = 107        # Custom input
 
 # === Normalization ========================================================
 
 class Normalization(IntEnum):
   NONE = 0          # No normalization
   SAME_RADIUS = 1   # Normalization over sectors with the same radius
-  ALL = 2           # Normalization over all sectors
+  SAME_SLICE = 2    # Normalization over sectors within the same angular slice
+  ALL = 3           # Normalization over all sectors
 
 # === Activation fuctions ==================================================
 

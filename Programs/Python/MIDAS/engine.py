@@ -162,6 +162,9 @@ class Groups:
     # Group parameters
     self.param = np.empty(0, dtype=np.float32)
 
+    # Max number of agent-dependent coefficients per group
+    self.mN_ADCpG = 0
+
   # ------------------------------------------------------------------------
   #   Parameter serialization
   # ------------------------------------------------------------------------
@@ -175,13 +178,14 @@ class Groups:
     if 'rS' in kwargs:
 
       rS = np.sort(kwargs['rS'])
-      nR =  rS.size + 1 
+      nR = rS.size + 1 
 
       param.append(nR)
       [param.append(x) for x in rS]
 
     else:
-      param.append(1)
+      nR = 1
+      param.append(nR)      
 
     # --- Maximal radius
 
@@ -204,6 +208,29 @@ class Groups:
     else:
       nSb = 1
 
+    # --- Number of inputs
+
+    l_ADI = [RInput.PRESENCE, RInput.ORIENTATION, RInput.FIELD_AGENTS, RInput.CUSTOM_AGENTS]
+
+    # Agent-dependent inputs
+    N_ADI = np.count_nonzero(x in l_ADI for x in kwargs['coefficients'].keys())
+
+    # Update max number of agent-dependent coefficients per group
+    N_ADCpG = 0
+    for k in kwargs['coefficients'].keys():
+      match k:
+        case RInput.PRESENCE: N_ADCpG += nR*nSa*nSb
+        case RInput.ORIENTATION: N_ADCpG += nR*nSa*nSb
+
+
+    self.mN_ADCpG = max(self.mN_ADCpG, N_ADCpG)
+
+    # Non agent-dependent inputs
+    N_nADI = len(kwargs['coefficients'].keys()) - N_ADI
+
+    param.append(N_nADI)
+    param.append(N_ADI)
+
     # --- Coefficients    
     '''
     Each grid is composed of nS = nR*nSa*nSb sector.
@@ -213,10 +240,20 @@ class Groups:
     - Group: nS.nG^2
     '''
 
+    # Non agent-dependent inputs
     for k, C in kwargs['coefficients'].items():
-      param.append(k.value)
-      [param.append(c) for c in C]
+      if k not in l_ADI:
+        param.append(k.value)
+        [param.append(c) for c in C]
    
+    # Agent-dependent inputs
+    for k, C in kwargs['coefficients'].items():
+      if k in l_ADI:
+        param.append(k.value)
+        [param.append(c) for c in C]
+
+    # --- Type and size handling
+
     # Convert to numpy
     param = np.array(param, dtype=np.float32)
 
@@ -229,8 +266,6 @@ class Groups:
         self.param = np.concatenate((self.param, param[None,:]), axis=0)
     else:
       self.param = param[None,:]
-
-    # print(self.param)
 
 # === ENGINE ===============================================================
 
@@ -391,7 +426,8 @@ class Engine:
     # Double-buffer computation trick
     if i % 2:
       
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom, i, self.cuda.atype, self.cuda.group,
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](
+        self.cuda.geom, i, self.cuda.atype, self.cuda.group,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
@@ -402,7 +438,8 @@ class Engine:
 
     else:
 
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom, i, self.cuda.atype, self.cuda.group,
+      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](
+        self.cuda.geom, i, self.cuda.atype, self.cuda.group,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
@@ -438,6 +475,13 @@ class Engine:
     # Reference time
     self.tref = time.time()
 
+    # --- Inputs -----------------------------------------------------------
+
+    if self.groups.mN_ADCpG:
+      inputs = np.zeros((self.agents.N, self.groups.N*self.groups.mN_ADCpG), dtype=np.float32)
+    else:
+      inputs = np.zeros([], dtype=np.float32)
+
     # --- CUDA preparation -------------------------------------------------
     
     # Threads and blocks
@@ -448,12 +492,13 @@ class Engine:
     self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
 
     # Send arrays to device
-    self.cuda.atype = cuda.to_device(self.agents.atype.astype(np.float32))
-    self.cuda.group = cuda.to_device(self.agents.group.astype(np.float32))
+    self.cuda.atype = cuda.to_device(self.agents.atype.astype(np.int16))
+    self.cuda.group = cuda.to_device(self.agents.group.astype(np.int16))
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
     self.cuda.aparam = cuda.to_device(self.agents.param.astype(np.float32))
     self.cuda.gparam = cuda.to_device(self.groups.param.astype(np.float32))
+    self.cuda.input = cuda.to_device(inputs)
 
     # Double buffers
     self.cuda.p1 = cuda.device_array((self.agents.N, self.geom.dimension), np.float32)
@@ -547,6 +592,7 @@ class CUDA:
     self.group = None
     self.aparam = None
     self.gparam = None
+    self.input = None
     
     # Radial Input specifics
     self.rS = None
@@ -579,7 +625,7 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
   if i<p0.shape[0]:
 
     N, dim = p0.shape
-
+    
     # === Fixed points =====================================================
 
     if atype[i]==Agent.FIXED.value:
@@ -666,19 +712,26 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
 
     if atype[i]==Agent.RIPO.value:
 
+      # Number of groups
+      nG = gparam.shape[0]
+
       # Group id
       gid = int(group[i])
 
       # === Deserialization of the RIPO parameters ===
       '''
       RIPO
-      ├── nR          (1)
-      ├── rS          (nR-1)
-      ├── nSa         (1, if dim>1) 
-      ├── nSb         (1, if dim>2)
-      ├── Input type  (1)
-      ├── coeffs      (var)
-      ├── Output      (?)
+      ├── nR            (1)
+      ├── rS            (nR-1)
+      ├── nSa           (1, if dim>1) 
+      ├── nSb           (1, if dim>2)
+      ├── N_nADI        (1)
+      ├── N_ADI         (1)
+      ├──── Input type  (1)   ┐
+      ├──── coeffs      (var) │ As many as input
+      ├──── ...               ┘
+      ├──── Output      (var) ┐
+      ├──── ...               ┘ As many as output
       '''
 
       # --- Radial limits
@@ -686,35 +739,58 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
       # Number of sectors per slice
       nR = int(gparam[gid, 0])
 
-      # Sectors' radii first element
-      rS0 = 1 if nR>1 else None
+      # Sectors' radii first element index
+      k_R0 = 1 if nR>1 else None
 
       # Maximal radius
       rmax = gparam[gid, nR] if gparam[gid, nR]>0 else None
 
       # --- Angular slices
 
-      nSa = gparam[gid, nR+1] if dim>1 else 1
-      nSb = gparam[gid, nR+2] if dim>2 else 1
+      nSa = int(gparam[gid, nR+1]) if dim>1 else 1
+      nSb = int(gparam[gid, nR+2]) if dim>2 else 1
 
-      k = nR + dim
+      # --- Inputs
+
+      # Number of non agent-dependent input
+      N_nADI = gparam[gid, nR + dim]
+
+      # Number of agent-dependent input
+      N_ADI = gparam[gid, nR + dim + 1]
+
+      kref = nR + dim + 2
 
       # === Interactions ===================================================
 
-      for j in range(N):
+      if N_ADI:
 
-        # Skip self-perception
-        if i==j: continue
+        for j in range(N):
 
-        # Distance and relative orientation
-        z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+          # Skip self-perception
+          if i==j: continue
 
-        if not status:
-          print('None')
-        else:
-          print(z.real, z.imag, alpha)
+          # Distance and relative orientation
+          z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
 
-      # a=cuda.local.array(shape=1,dtype=numba.float64)
+          # Skip agents out of reach (further than rmax)
+          if not status: continue
+
+          # --- Scan inputs
+
+          k = kref
+          
+          for ci in range(N_ADI):
+
+            match gparam[gid, k]:
+              
+              case RInput.PRESENCE.value:
+              
+                
+
+                # Update coeff index
+                k += nG*nR*nSa*nSb
+        
+          # print(z.real, z.imag, alpha)
       
       # === Inputs ===
 
@@ -724,9 +800,7 @@ def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
 
       da = 0
       dv = 0
-
-      # dv, da = RIPO_2d(i, p0, v0)
-      pass      
+   
 
     # === Update ===========================================================
 
