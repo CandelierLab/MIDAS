@@ -162,8 +162,10 @@ class Groups:
     # Group parameters
     self.param = np.empty(0, dtype=np.float32)
 
-    # Number of inputs
-    self.N_inputs = []
+    # Lists for cuda
+    self.l_nR = []    # Number of radii
+    self.l_nZ = []    # Number of zones
+    self.l_nI = []    # Number of inputs
 
   # ------------------------------------------------------------------------
   #   Parameter serialization
@@ -173,21 +175,25 @@ class Groups:
     '''
     Defines the parameters for a group of RIPO agents
 
-    param
-    ├── nR              (1)
-    ├── nSa             (1, if dim>1) 
-    ├── nSb             (1, if dim>2)
-    ├── rS              (nR-1)
-    ├── rmax            (1)
-    ├──── Perception    (1)   ┐
-    ├──── Normalization (1)   │
-    ├──── coeffs        (var) │ As many as input
-    ├──── ...                 ┘
-    ├──── Output      (var) ┐
-    ├──── ...               ┘ As many as output
+    Update:
+      - l_nR
+      - l_nZ
+      - l_nI
+      - param
+        ├── nR              (1)
+        ├── nSa             (1, if dim>1) 
+        ├── nSb             (1, if dim>2)
+        ├── rS              (nR-1)
+        ├── rmax            (1)
+        ├──── Perception    (1)   ┐
+        ├──── Normalization (1)   │
+        ├──── coeffs        (var) │ As many as input
+        ├──── ...                 ┘
+        ├──── Output      (var) ┐
+        ├──── ...               ┘ As many as output
     '''
 
-    # --- Sectors' grid dimensions -----------------------------------------
+    # --- Zones' grid dimensions -------------------------------------------
 
     # --- Number of radii
 
@@ -196,6 +202,7 @@ class Groups:
       nR = rS.size + 1 
     else:
       nR = 1
+
     param = [nR]
 
     # --- Angular slices
@@ -212,9 +219,9 @@ class Groups:
     else:
       nSb = 1
 
-    # --- Sectors specifications ------------------------------------------
+    # --- Zones specifications ---------------------------------------------
     
-    # Sectors radii
+    # Zone radii
     if nR>1:
       [param.append(x) for x in rS]
 
@@ -226,13 +233,13 @@ class Groups:
 
     # --- Inputs and coeffificients    
     
-    N_inputs = 0
+    nI = 0
 
     for I in kwargs['inputs']:
       param.append(I['perception'])
       param.append(I['normalization'])
       [param.append(c) for c in I['coefficients']]
-      N_inputs += np.array(I['coefficients']).size
+      nI += np.array(I['coefficients']).size
 
     # --- Type and size handling
 
@@ -249,7 +256,11 @@ class Groups:
     else:
       self.param = param[None,:]
 
-    return N_inputs
+    # --- Update lists
+
+    self.l_nR.append(nR)
+    self.l_nZ.append(nR*nSa*nSb)
+    self.l_nI.append(nI)
 
 # === ENGINE ===============================================================
 
@@ -363,12 +374,6 @@ class Engine:
 
     # --- Group definition -------------------------------------------------
     
-    match gtype:
-      case Agent.RIPO:
-        N_inputs = self.groups.param_RIPO(**kwargs)
-      case _:
-        N_inputs = 0
-
     # Groups
     if gname in self.groups.names:
       iname = self.groups.names.index(gname)
@@ -377,8 +382,17 @@ class Engine:
       self.groups.N += 1
       self.groups.names.append(gname)
       self.groups.atype.append(gtype)
-      self.groups.N_inputs.append(N_inputs)
 
+    # Group parameters
+    match gtype:
+      case Agent.RIPO:
+        self.groups.param_RIPO(**kwargs)
+      case _:
+        self.groups.l_nR.append(0)
+        self.groups.l_nZ.append(0)
+        self.groups.l_nI.append(0)
+
+    # Agents' groups
     self.agents.group = np.concatenate((self.agents.group, iname*np.ones(N, dtype=int)), axis=0)
 
   # ------------------------------------------------------------------------
@@ -597,33 +611,19 @@ class CUDA:
     #   CUDA kernel variables
     # --------------------------------------------------------------------------
 
-    if Agent.RIPO in self.engine.groups.atype:
-      
-      # Max number of radii
-      m_nR = int(np.max(self.engine.groups.param[:,0]))
-
-      # Max grid size for Agent-Free Inputs (AFI)
-      match self.engine.geom.dimension:
-        case 1: m_AFIgs = int(np.max(self.engine.groups.param[:,0]))
-        case 2: m_AFIgs = int(np.max(np.prod(self.engine.groups.param[:,:2], axis=1)))
-        case 3: m_AFIgs = int(np.max(np.prod(self.engine.groups.param[:,:3], axis=1)))
-
-      # Max grid size for Agent-Dependent Inputs (ADI)
-      m_ADIgs = m_AFIgs*self.engine.groups.param.shape[0]
-      
-    else:
-      m_nR = 0
-      m_AFIgs = 0
-      m_ADIgs = 0
-
-    # Max number of inputs
-    m_Nin = max(self.engine.groups.N_inputs)
+    # Expose max sizes as CUDA global variables (for local array dimensions)
+    m_nR = max(self.engine.groups.l_nR)
+    m_nZ = max(self.engine.groups.l_nZ)
+    m_nCaf = m_nZ
+    m_nCad = m_nZ*self.engine.groups.N
+    m_nI = max(self.engine.groups.l_nI)
 
     print('gparam', self.engine.groups.param)
     print('m_nR', m_nR)
-    print('m_AFIgs', m_AFIgs)
-    print('m_ADIgs', m_ADIgs)
-    print('m_Nin', m_Nin)
+    print('m_nZ', m_nZ)
+    print('m_nCaf', m_nCaf)
+    print('m_nCad', m_nCad)
+    print('m_nI', m_nI)
 
     # --------------------------------------------------------------------------
     #   The CUDA kernel
@@ -745,7 +745,7 @@ class CUDA:
 
           # --- Radial limits
 
-          # Number of sectors per slice
+          # Number of zones per slice
           nR = int(gparam[gid, 0])
 
           # --- Angular slices
@@ -753,24 +753,27 @@ class CUDA:
           nSa = int(gparam[gid, 1]) if dim>1 else 1
           nSb = int(gparam[gid, 2]) if dim>2 else 1
 
-          # --- Number of coefficients per input
+          # Number of zones
+          nZ = nR*nSa*nSb
 
+          # Number of coefficients per input type
           nc_AFI = nR*nSa*nSb
           nc_ADI = nG*nR*nSa*nSb
 
-          # --- Sectors' radii
+          # --- Zones radii
 
           rS = cuda.local.array(m_nR, nb.float32)
           for ri in range(nR-1):
             rS[ri] = gparam[gid, dim+ri]
 
           # Maximal radius
-          rmax = gparam[gid, nR + dim - 1] # if gparam[gid, dim+nR-1]>0 else None
+          rmax = gparam[gid, nR + dim - 1] if gparam[gid, dim+nR-1]>0 else None
 
           # --- Inputs
 
           kref = nR + dim
-
+          coeffs = cuda.local.array(m_nI, nb.float32)
+                
           # Default inputs
           i_pres = None
           i_ornt = None
@@ -791,29 +794,28 @@ class CUDA:
 
               case Perception.PRESENCE.value:
                 bADInput = True
-                i_pres = cuda.local.array(m_ADIgs, dtype=nb.float32)
+                i_pres = cuda.local.array(m_nCad, dtype=nb.float32)
 
-                # Number of inputs
-                nIn += nc_ADI
+                # Store coefficients
+                for ci in range(nc_ADI):
+                  coeffs[nIn] = gparam[gid, k + 2 + ci]
+                  nIn += 1
+
+                # Update input index
                 k += nc_ADI + 2
 
               case Perception.ORIENTATION.value:
                 bADInput = True
-                i_ornt = cuda.local.array(m_ADIgs, dtype=nb.float32)
-                i_orntC = cuda.local.array(m_ADIgs, dtype=nb.complex64)
+                i_ornt = cuda.local.array(m_nCad, dtype=nb.float32)
+                i_orntC = cuda.local.array(m_nCad, dtype=nb.complex64)
 
-                # Number of inputs
-                nIn += nc_ADI
+                # Store coefficients
+                for ci in range(nc_ADI):
+                  coeffs[nIn] = gparam[gid, k + 2 + ci]
+                  nIn += 1
+
+                # Update input index
                 k += nc_ADI + 2
-
-          # if i==0:
-          #   print('---------------')
-          #   print('nR', nR)
-          #   print('nSa', nSa)
-          #   print('nSb', nSb)
-          #   if nR>1: print('rS0', rS[0])
-          #   print('rmax', rmax)
-          #   print('---------------')
 
           # === Agent-free perception ======================================
 
@@ -831,6 +833,10 @@ class CUDA:
               # Distance and relative orientation
               z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
 
+              # if i==0:
+              #   print('---------')
+              #   print(z.real, z.imag, v0[i,1], cmath.phase(z), cmath.phase(z)% (2*math.pi))
+
               # Skip agents out of reach (further than rmax)
               if not status: continue
 
@@ -842,8 +848,7 @@ class CUDA:
                 ri = k
                 if abs(z)<rS[k]: break
                 
-              # Angular indices
-              ai = int((cmath.phase(z)/cmath.pi + 1)/2*nSa) if dim>1 else 0
+              ai = int((cmath.phase(z) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
               bi = 0 # if dim>2 else 0  # TODO: 3D
                                 
               match dim:
@@ -869,12 +874,10 @@ class CUDA:
 
           # --- Normalization and coefficients
         
-          # Definitions
-          IN = cuda.local.array(m_Nin, nb.float32)
-          coeffs = cuda.local.array(m_Nin, nb.float32)
-
+          # Weighted sum
+          WS = 0
+          
           k = kref
-          l = 0
           while True:
 
             # Break condition
@@ -887,9 +890,9 @@ class CUDA:
                 match gparam[gid, k+1]:
 
                   case Normalization.NONE.value:
-                    # for ci in range(nc_ADI):
-                    #   IN[]
-                    pass
+
+                    for ci in range(nc_ADI):
+                      WS += i_pres[ci]*coeffs[ci]                    
 
                   case Normalization.SAME_RADIUS.value:
                     pass
@@ -900,11 +903,7 @@ class CUDA:
                   case Normalization.ALL.value:
                     pass
 
-                # Store coefficients
-                for ci in range(nc_ADI):
-                  coeffs[l] = gparam[gid, k + 2 + ci]
-                  l += 1
-
+                # Update k
                 k += nc_ADI + 2
 
               case Perception.ORIENTATION.value:
@@ -915,7 +914,16 @@ class CUDA:
 
           # === Processing =================================================
 
-          da = 0
+          # !! Add output handling !!
+
+          da_max = math.pi/6
+
+          da = da_max*(4/math.pi*math.atan(math.exp((WS)/2))-1)
+
+          # if i==0: 
+          #   print(i_pres[0], i_pres[1], i_pres[2], i_pres[3])
+          #   print(WS, da)
+
           dv = 0
       
 
@@ -972,7 +980,7 @@ def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_
     '''
 
     # Complex polar coordinates
-    z = complex(x1-x0, y1-y0)
+    z = complex(y0-y1, x1-x0)
 
   elif arena==Arena.RECTANGULAR.value:
     '''
@@ -996,6 +1004,9 @@ def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_
 
   # Out of sight agents
   if rmax is not None and abs(z)>rmax: return (0, 0, False)
+
+  # Orientation
+  z *= cmath.rect(1., -a0)
 
   return (z, a1-a0, True)
 

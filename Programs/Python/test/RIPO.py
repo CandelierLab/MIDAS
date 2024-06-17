@@ -44,20 +44,25 @@ nSa = 4
 inputs = []
 inputs.append({'perception': Perception.PRESENCE, 
                'normalization': Normalization.NONE,
-               'coefficients': [1,1,1,1]})
+               'coefficients': [-1, -1, 1, 1]})
 
 # Outputs 
 output = [Activation.OUTPUT_ANGLE]
 
 # Initial conditions
-IC = {'position': [[-0.3,-0.3], [0.3,0.3]],
-      'orientation': [0, 0],
-      'speed': 0.015}
+N = 100 
+IC = {'position': None,
+      'orientation': None,
+      'speed': 0.01} 
 
+# IC = {'position': [[0,0], [0.1,0.3]],
+#       'orientation': [1.5, 0],
+#       'speed': 0.015}
+# N = len(IC['position']) 
 
-E.add_group(Agent.RIPO, len(IC['position']), name='agents',
+E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            nSa = nSa, rS = rS, rmax = 19, inputs=inputs, output=output)
+            nSa = nSa, rS = rS, rmax = None, inputs=inputs, output=output)
 
 # # --- RINNO weights --------------------------------------------------------
 

@@ -1,3 +1,7 @@
+Add:
+  - PAram: da_max
+  - Output managements
+
 Implement RIPO 2D
   - Presence
   - Orientation
