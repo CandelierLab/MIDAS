@@ -121,7 +121,7 @@ class Agents:
     self.N = 0
 
     # Types
-    self.atype = np.empty(0, dtype=int)
+    self.atype = np.empty(0, dtype=np.int16)
 
     # Positions and velocities
     '''
@@ -135,7 +135,7 @@ class Agents:
     self.param = np.empty((0, dimension+2))
 
     # Groups
-    self.group = np.empty(0, dtype=int)
+    self.group = np.empty(0, dtype=np.int16)
 
 # === GROUPS ===============================================================
 
@@ -157,42 +157,46 @@ class Groups:
     self.names = []
 
     # Types of the agents in each group
-    self.atype = np.empty(0, dtype=int)
+    self.atype = []
     
     # Group parameters
     self.param = np.empty(0, dtype=np.float32)
 
-    # Max number of agent-dependent coefficients per group
-    self.mN_ADCpG = 0
+    # Number of inputs
+    self.N_inputs = []
 
   # ------------------------------------------------------------------------
   #   Parameter serialization
   # ------------------------------------------------------------------------
 
-  def add_RIPO(self, **kwargs):
+  def param_RIPO(self, **kwargs):
+    '''
+    Defines the parameters for a group of RIPO agents
 
-    param = []
+    param
+    ├── nR              (1)
+    ├── nSa             (1, if dim>1) 
+    ├── nSb             (1, if dim>2)
+    ├── rS              (nR-1)
+    ├── rmax            (1)
+    ├──── Perception    (1)   ┐
+    ├──── Normalization (1)   │
+    ├──── coeffs        (var) │ As many as input
+    ├──── ...                 ┘
+    ├──── Output      (var) ┐
+    ├──── ...               ┘ As many as output
+    '''
 
-    # --- Radii of sectors
+    # --- Sectors' grid dimensions -----------------------------------------
+
+    # --- Number of radii
 
     if 'rS' in kwargs:
-
       rS = np.sort(kwargs['rS'])
       nR = rS.size + 1 
-
-      param.append(nR)
-      [param.append(x) for x in rS]
-
     else:
       nR = 1
-      param.append(nR)      
-
-    # --- Maximal radius
-
-    if 'rmax' in kwargs and kwargs['rmax'] is not None:
-      param.append(kwargs['rmax'])
-    else:
-      param.append(0)
+    param = [nR]
 
     # --- Angular slices
 
@@ -208,49 +212,27 @@ class Groups:
     else:
       nSb = 1
 
-    # --- Number of inputs
+    # --- Sectors specifications ------------------------------------------
+    
+    # Sectors radii
+    if nR>1:
+      [param.append(x) for x in rS]
 
-    l_ADI = [RInput.PRESENCE, RInput.ORIENTATION, RInput.FIELD_AGENTS, RInput.CUSTOM_AGENTS]
+    # Maximal radius
+    if 'rmax' in kwargs and kwargs['rmax'] is not None:
+      param.append(kwargs['rmax'])
+    else:
+      param.append(0)
 
-    # Agent-dependent inputs
-    N_ADI = np.count_nonzero(x in l_ADI for x in kwargs['coefficients'].keys())
+    # --- Inputs and coeffificients    
+    
+    N_inputs = 0
 
-    # Update max number of agent-dependent coefficients per group
-    N_ADCpG = 0
-    for k in kwargs['coefficients'].keys():
-      match k:
-        case RInput.PRESENCE: N_ADCpG += nR*nSa*nSb
-        case RInput.ORIENTATION: N_ADCpG += nR*nSa*nSb
-
-
-    self.mN_ADCpG = max(self.mN_ADCpG, N_ADCpG)
-
-    # Non agent-dependent inputs
-    N_nADI = len(kwargs['coefficients'].keys()) - N_ADI
-
-    param.append(N_nADI)
-    param.append(N_ADI)
-
-    # --- Coefficients    
-    '''
-    Each grid is composed of nS = nR*nSa*nSb sector.
-    The number of coefficients depends on the input types:
-    - Walls: nS
-    - Field: nS.nF
-    - Group: nS.nG^2
-    '''
-
-    # Non agent-dependent inputs
-    for k, C in kwargs['coefficients'].items():
-      if k not in l_ADI:
-        param.append(k.value)
-        [param.append(c) for c in C]
-   
-    # Agent-dependent inputs
-    for k, C in kwargs['coefficients'].items():
-      if k in l_ADI:
-        param.append(k.value)
-        [param.append(c) for c in C]
+    for I in kwargs['inputs']:
+      param.append(I['perception'])
+      param.append(I['normalization'])
+      [param.append(c) for c in I['coefficients']]
+      N_inputs += np.array(I['coefficients']).size
 
     # --- Type and size handling
 
@@ -266,6 +248,8 @@ class Groups:
         self.param = np.concatenate((self.param, param[None,:]), axis=0)
     else:
       self.param = param[None,:]
+
+    return N_inputs
 
 # === ENGINE ===============================================================
 
@@ -296,8 +280,8 @@ class Engine:
     self.animation = None
 
     # GPU
-    self.cuda = CUDA()
-
+    self.cuda = None
+    
     # --- Time
 
     # Total number of steps
@@ -381,15 +365,19 @@ class Engine:
     
     match gtype:
       case Agent.RIPO:
-        self.groups.add_RIPO(**kwargs)
+        N_inputs = self.groups.param_RIPO(**kwargs)
+      case _:
+        N_inputs = 0
 
     # Groups
     if gname in self.groups.names:
       iname = self.groups.names.index(gname)
     else:
       iname = len(self.groups.names)
-      self.groups.names.append(gname)
       self.groups.N += 1
+      self.groups.names.append(gname)
+      self.groups.atype.append(gtype)
+      self.groups.N_inputs.append(N_inputs)
 
     self.agents.group = np.concatenate((self.agents.group, iname*np.ones(N, dtype=int)), axis=0)
 
@@ -426,8 +414,8 @@ class Engine:
     # Double-buffer computation trick
     if i % 2:
       
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](
-        self.cuda.geom, i, self.cuda.atype, self.cuda.group,
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](
+        self.cuda.geom, self.cuda.atype, self.cuda.group,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
@@ -438,8 +426,8 @@ class Engine:
 
     else:
 
-      CUDA_step[self.cuda.gridDim, self.cuda.blockDim](
-        self.cuda.geom, i, self.cuda.atype, self.cuda.group,
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](
+        self.cuda.geom, self.cuda.atype, self.cuda.group,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
@@ -470,17 +458,11 @@ class Engine:
       print('-'*50)
       print(f'Running simulation with {self.steps} steps ...')
 
-      print(self.groups.param)
-
     # Reference time
     self.tref = time.time()
 
-    # --- Inputs -----------------------------------------------------------
-
-    if self.groups.mN_ADCpG:
-      inputs = np.zeros((self.agents.N, self.groups.N*self.groups.mN_ADCpG), dtype=np.float32)
-    else:
-      inputs = np.zeros([], dtype=np.float32)
+    # GPU arrays
+    self.cuda = CUDA(self)
 
     # --- CUDA preparation -------------------------------------------------
     
@@ -498,7 +480,6 @@ class Engine:
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
     self.cuda.aparam = cuda.to_device(self.agents.param.astype(np.float32))
     self.cuda.gparam = cuda.to_device(self.groups.param.astype(np.float32))
-    self.cuda.input = cuda.to_device(inputs)
 
     # Double buffers
     self.cuda.p1 = cuda.device_array((self.agents.N, self.geom.dimension), np.float32)
@@ -569,12 +550,24 @@ class Engine:
       self.animation.initialize()
       self.window.show()
 
-# === CUDA =================================================================
+############################################################################
+############################################################################
+# #                                                                      # #
+# #                                                                      # #
+# #                               CUDA                                   # #
+# #                                                                      # #
+# #                                                                      # #
+############################################################################
+############################################################################
 
 class CUDA:
 
-  def __init__(self):
+  def __init__(self, engine):
 
+    # Associated engine
+    self.engine = engine
+
+    # Blocks and grid size
     self.blockDim = None
     self.gridDim = None
 
@@ -600,238 +593,365 @@ class CUDA:
     # Random number generator
     self.rng = None
 
-############################################################################
-############################################################################
-# #                                                                      # #
-# #                                                                      # #
-# #                        DEVICE FUNCTIONS                              # #
-# #                                                                      # #
-# #                                                                      # #
-############################################################################
-############################################################################
+    # --------------------------------------------------------------------------
+    #   CUDA kernel variables
+    # --------------------------------------------------------------------------
 
-# --------------------------------------------------------------------------
-#   The CUDA kernel
-# --------------------------------------------------------------------------
+    if Agent.RIPO in self.engine.groups.atype:
+      
+      # Max number of radii
+      m_nR = int(np.max(self.engine.groups.param[:,0]))
 
-@cuda.jit
-def CUDA_step(geom, i, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
-  '''
-  The CUDA kernel
-  '''
+      # Max grid size for Agent-Free Inputs (AFI)
+      match self.engine.geom.dimension:
+        case 1: m_AFIgs = int(np.max(self.engine.groups.param[:,0]))
+        case 2: m_AFIgs = int(np.max(np.prod(self.engine.groups.param[:,:2], axis=1)))
+        case 3: m_AFIgs = int(np.max(np.prod(self.engine.groups.param[:,:3], axis=1)))
 
-  i = cuda.grid(1)
+      # Max grid size for Agent-Dependent Inputs (ADI)
+      m_ADIgs = m_AFIgs*self.engine.groups.param.shape[0]
+      
+    else:
+      m_nR = 0
+      m_AFIgs = 0
+      m_ADIgs = 0
 
-  if i<p0.shape[0]:
+    # Max number of inputs
+    m_Nin = max(self.engine.groups.N_inputs)
 
-    N, dim = p0.shape
+    print('gparam', self.engine.groups.param)
+    print('m_nR', m_nR)
+    print('m_AFIgs', m_AFIgs)
+    print('m_ADIgs', m_ADIgs)
+    print('m_Nin', m_Nin)
+
+    # --------------------------------------------------------------------------
+    #   The CUDA kernel
+    # --------------------------------------------------------------------------
     
-    # === Fixed points =====================================================
-
-    if atype[i]==Agent.FIXED.value:
-      for j in range(dim):
-        p1[i,j] = p0[i,j]
-
-    # === Deserialization of the parameters ================================
-
-    # --- Geometric parameters ---------------------------------------------
-    '''
-    arena_X,Y,Z:
-      circular arena: radius
-      rectangular arena: width/2, height/2, depth/2
-    periodic_X,Y,Z:
-      0: reflexive
-      1: periodic
-    '''
-
-    # Arena        
-    arena = geom[0]
-
-    match dim:
-
-      case 1:
-
-        # Arena shape
-        arena_X = geom[1]
-
-        # Arena periodicity
-        periodic_X = geom[2]
-
-      case 2:
-
-        # Arena shape
-        arena_X = geom[1]
-        arena_Y = geom[2]
-
-        # Arena periodicity
-        periodic_X = geom[3]
-        periodic_Y = geom[4]
-
-      case 3:
-
-        # Arena shape
-        arena_X = geom[1]
-        arena_Y = geom[2]
-        arena_Z = geom[3]
-
-        # Arena periodicity
-        periodic_X = geom[4]
-        periodic_Y = geom[5]
-        periodic_Z = geom[6]
-
-    # --- Agent parameters -------------------------------------------------
-    '''
-    Agents parameters 
-    ├── vlim: speed limits (size=2)
-    ├── Noise: speed, alpha, beta (size=dim)
-    ├── ... (see below for parameters based on each agent type)
-    '''
-
-    # Velocity limits
-    vmin = aparam[i,0]
-    vmax = aparam[i,1]
-
-    # Noise
-    vnoise = aparam[i,2]
-    if dim>1: anoise = aparam[i,3]
-    if dim>2: bnoise = aparam[i,4]
-
-    # === Computation ======================================================
-
-    # Polar coordinates
-    v = v0[i,0]
-    a = v0[i,1]
-
-    # --- Blind agents -----------------------------------------------------
-
-    if atype[i]==Agent.BLIND.value:
-      dv = 0
-      da = 0
-
-    # --- RIPO agents ------------------------------------------------------
-
-    if atype[i]==Agent.RIPO.value:
-
-      # Number of groups
-      nG = gparam.shape[0]
-
-      # Group id
-      gid = int(group[i])
-
-      # === Deserialization of the RIPO parameters ===
+    @cuda.jit
+    def CUDA_step(geom, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
       '''
-      RIPO
-      ├── nR            (1)
-      ├── rS            (nR-1)
-      ├── nSa           (1, if dim>1) 
-      ├── nSb           (1, if dim>2)
-      ├── N_nADI        (1)
-      ├── N_ADI         (1)
-      ├──── Input type  (1)   ┐
-      ├──── coeffs      (var) │ As many as input
-      ├──── ...               ┘
-      ├──── Output      (var) ┐
-      ├──── ...               ┘ As many as output
+      The CUDA kernel
       '''
 
-      # --- Radial limits
+      i = cuda.grid(1)
 
-      # Number of sectors per slice
-      nR = int(gparam[gid, 0])
+      if i<p0.shape[0]:
 
-      # Sectors' radii first element index
-      k_R0 = 1 if nR>1 else None
+        N, dim = p0.shape
+        
+        # === Fixed points =====================================================
 
-      # Maximal radius
-      rmax = gparam[gid, nR] if gparam[gid, nR]>0 else None
+        if atype[i]==Agent.FIXED.value:
+          for j in range(dim):
+            p1[i,j] = p0[i,j]
 
-      # --- Angular slices
+        # === Deserialization of the parameters ================================
 
-      nSa = int(gparam[gid, nR+1]) if dim>1 else 1
-      nSb = int(gparam[gid, nR+2]) if dim>2 else 1
+        # --- Geometric parameters ---------------------------------------------
+        '''
+        arena_X,Y,Z:
+          circular arena: radius
+          rectangular arena: width/2, height/2, depth/2
+        periodic_X,Y,Z:
+          0: reflexive
+          1: periodic
+        '''
 
-      # --- Inputs
+        # Arena        
+        arena = geom[0]
 
-      # Number of non agent-dependent input
-      N_nADI = gparam[gid, nR + dim]
+        match dim:
 
-      # Number of agent-dependent input
-      N_ADI = gparam[gid, nR + dim + 1]
+          case 1:
 
-      kref = nR + dim + 2
+            # Arena shape
+            arena_X = geom[1]
 
-      # === Interactions ===================================================
+            # Arena periodicity
+            periodic_X = geom[2]
 
-      if N_ADI:
+          case 2:
 
-        for j in range(N):
+            # Arena shape
+            arena_X = geom[1]
+            arena_Y = geom[2]
 
-          # Skip self-perception
-          if i==j: continue
+            # Arena periodicity
+            periodic_X = geom[3]
+            periodic_Y = geom[4]
 
-          # Distance and relative orientation
-          z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+          case 3:
 
-          # Skip agents out of reach (further than rmax)
-          if not status: continue
+            # Arena shape
+            arena_X = geom[1]
+            arena_Y = geom[2]
+            arena_Z = geom[3]
 
-          # --- Scan inputs
+            # Arena periodicity
+            periodic_X = geom[4]
+            periodic_Y = geom[5]
+            periodic_Z = geom[6]
+
+        # --- Agent parameters -------------------------------------------------
+        '''
+        Agents parameters 
+        ├── vlim: speed limits (size=2)
+        ├── Noise: speed, alpha, beta (size=dim)
+        ├── ... (see below for parameters based on each agent type)
+        '''
+
+        # Velocity limits
+        vmin = aparam[i,0]
+        vmax = aparam[i,1]
+
+        # Noise
+        vnoise = aparam[i,2]
+        if dim>1: anoise = aparam[i,3]
+        if dim>2: bnoise = aparam[i,4]
+
+        # === Computation ======================================================
+
+        # Polar coordinates
+        v = v0[i,0]
+        a = v0[i,1]
+
+        # --- RIPO agents ------------------------------------------------------
+
+        if atype[i]==Agent.RIPO.value:
+
+          # Number of groups
+          nG = gparam.shape[0]
+
+          # Group id
+          gid = int(group[i])
+
+          # === Deserialization of the RIPO parameters ===
+          '''
+          RIPO
+          ├── nR              (1)
+          ├── nSa             (1, if dim>1) 
+          ├── nSb             (1, if dim>2)
+          ├── rS              (nR-1)
+          ├── rmax            (1)
+          ├──── Perception    (1)   ┐
+          ├──── Normalization (1)   │
+          ├──── coeffs        (var) │ As many as input
+          ├──── ...                 ┘
+          ├──── Output      (var) ┐
+          ├──── ...               ┘ As many as output
+          '''
+
+          # --- Radial limits
+
+          # Number of sectors per slice
+          nR = int(gparam[gid, 0])
+
+          # --- Angular slices
+
+          nSa = int(gparam[gid, 1]) if dim>1 else 1
+          nSb = int(gparam[gid, 2]) if dim>2 else 1
+
+          # --- Number of coefficients per input
+
+          nc_AFI = nR*nSa*nSb
+          nc_ADI = nG*nR*nSa*nSb
+
+          # --- Sectors' radii
+
+          rS = cuda.local.array(m_nR, nb.float32)
+          for ri in range(nR-1):
+            rS[ri] = gparam[gid, dim+ri]
+
+          # Maximal radius
+          rmax = gparam[gid, nR + dim - 1] # if gparam[gid, dim+nR-1]>0 else None
+
+          # --- Inputs
+
+          kref = nR + dim
+
+          # Default inputs
+          i_pres = None
+          i_ornt = None
+          i_orntC = None
+
+          # Default mode
+          bADInput = False
+
+          # Scan inputs
+          k = kref
+          nIn = 0
+          while True:
+
+            # Break condition
+            if k>=gparam.shape[1]: break
+
+            match gparam[gid, k]:                  
+
+              case Perception.PRESENCE.value:
+                bADInput = True
+                i_pres = cuda.local.array(m_ADIgs, dtype=nb.float32)
+
+                # Number of inputs
+                nIn += nc_ADI
+                k += nc_ADI + 2
+
+              case Perception.ORIENTATION.value:
+                bADInput = True
+                i_ornt = cuda.local.array(m_ADIgs, dtype=nb.float32)
+                i_orntC = cuda.local.array(m_ADIgs, dtype=nb.complex64)
+
+                # Number of inputs
+                nIn += nc_ADI
+                k += nc_ADI + 2
+
+          # if i==0:
+          #   print('---------------')
+          #   print('nR', nR)
+          #   print('nSa', nSa)
+          #   print('nSb', nSb)
+          #   if nR>1: print('rS0', rS[0])
+          #   print('rmax', rmax)
+          #   print('---------------')
+
+          # === Agent-free perception ======================================
+
+          # TO DO
+
+          # === Agent-dependent perception =================================
+
+          if bADInput:
+
+            for j in range(N):
+
+              # Skip self-perception
+              if i==j: continue
+
+              # Distance and relative orientation
+              z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+
+              # Skip agents out of reach (further than rmax)
+              if not status: continue
+
+              # --- Index in the grid
+
+              # Radial index
+              ri = 0
+              for k in range(nR):
+                ri = k
+                if abs(z)<rS[k]: break
+                
+              # Angular indices
+              ai = int((cmath.phase(z)/cmath.pi + 1)/2*nSa) if dim>1 else 0
+              bi = 0 # if dim>2 else 0  # TODO: 3D
+                                
+              match dim:
+                case 1: ig = ri
+                case 2: ig = ri*nSa + ai
+                case 3: ig = (ri*nSa + ai)*nSb + bi
+
+              # --- Inputs
+
+              if i_pres is not None:
+                i_pres[ig] += 1
+
+              if i_ornt is not None:
+                # TODO: Implement other dimensions
+                i_orntC[ig] += z
+          
+          # === Inputs and coefficients ====================================
+
+          # Orientation
+          if i_ornt is not None:
+            for k in range(nc_ADI):
+              i_ornt[i] = cmath.phase(i_orntC[i])
+
+          # --- Normalization and coefficients
+        
+          # Definitions
+          IN = cuda.local.array(m_Nin, nb.float32)
+          coeffs = cuda.local.array(m_Nin, nb.float32)
 
           k = kref
-          
-          for ci in range(N_ADI):
+          l = 0
+          while True:
 
-            match gparam[gid, k]:
-              
-              case RInput.PRESENCE.value:
-              
-                
+            # Break condition
+            if k>=gparam.shape[1]: break
 
-                # Update coeff index
-                k += nG*nR*nSa*nSb
-        
-          # print(z.real, z.imag, alpha)
+            match gparam[gid, k]:                  
+
+              case Perception.PRESENCE.value:
+
+                match gparam[gid, k+1]:
+
+                  case Normalization.NONE.value:
+                    # for ci in range(nc_ADI):
+                    #   IN[]
+                    pass
+
+                  case Normalization.SAME_RADIUS.value:
+                    pass
+
+                  case Normalization.SAME_SLICE.value:
+                    pass
+
+                  case Normalization.ALL.value:
+                    pass
+
+                # Store coefficients
+                for ci in range(nc_ADI):
+                  coeffs[l] = gparam[gid, k + 2 + ci]
+                  l += 1
+
+                k += nc_ADI + 2
+
+              case Perception.ORIENTATION.value:
+                i_orntC[ig] += z
+                # TODO
+
+                k += nc_ADI + 2
+
+          # === Processing =================================================
+
+          da = 0
+          dv = 0
       
-      # === Inputs ===
 
-      IN = 0
+        # === Update =======================================================
 
-      # === Processing ===
+        match dim:
 
-      da = 0
-      dv = 0
-   
+          case 2:
 
-    # === Update ===========================================================
+            # Update velocity
+            v += dv
+            a += da
 
-    match dim:
+            # --- Noise ----------------------------------------------------
 
-      case 2:
+            # Speed noise
+            if vnoise:
+              v += vnoise*xoroshiro128p_normal_float32(rng, i)
+              if v < vmin: v = vmin
+              elif v > vmax: v = vmax
 
-        # Update velocity
-        v += dv
-        a += da
+            # Angular noise
+            if anoise:
+              a += anoise*xoroshiro128p_normal_float32(rng, i)
 
-        # --- Noise --------------------------------------------------------
+            # Candidate position and velocity
+            z0 = complex(p0[i,0], p0[i,1])
+            z1 = z0 + cmath.rect(v, a)
 
-        # Speed noise
-        if vnoise:
-          v += vnoise*xoroshiro128p_normal_float32(rng, i)
-          if v < vmin: v = vmin
-          elif v > vmax: v = vmax
+            # Boundary conditions
+            p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, a, arena,
+                                                          arena_X, arena_Y,
+                                                          periodic_X, periodic_Y)
 
-        # Angular noise
-        if anoise:
-          a += anoise*xoroshiro128p_normal_float32(rng, i)
-
-        # Candidate position and velocity
-        z0 = complex(p0[i,0], p0[i,1])
-        z1 = z0 + cmath.rect(v, a)
-
-        # Boundary conditions
-        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, a, arena,
-                                                       arena_X, arena_Y,
-                                                       periodic_X, periodic_Y)
+    # Store CUDA kernel
+    self.step = CUDA_step
 
 # --------------------------------------------------------------------------
 #   Boundary conditions

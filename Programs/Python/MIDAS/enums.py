@@ -15,12 +15,11 @@ class Arena(IntEnum):
 
 class Agent(IntEnum):
   FIXED = 0
-  BLIND = 1
-  RIPO = 2
+  RIPO = 1
 
-# === Radial input types ===================================================
+# === Perception functions =================================================
 
-class RInput(IntEnum):
+class Perception(IntEnum):
 
   # Agent-dependent
   PRESENCE = 100          # Presence (count agents)
@@ -37,10 +36,10 @@ class RInput(IntEnum):
 # === Normalization ========================================================
 
 class Normalization(IntEnum):
-  NONE = 0          # No normalization
-  SAME_RADIUS = 1   # Normalization over sectors with the same radius
-  SAME_SLICE = 2    # Normalization over sectors within the same angular slice
-  ALL = 3           # Normalization over all sectors
+  NONE = 200          # No normalization
+  SAME_RADIUS = 201   # Normalization over sectors with the same radius
+  SAME_SLICE = 202    # Normalization over sectors within the same angular slice
+  ALL = 203           # Normalization over all sectors
 
 # === Activation fuctions ==================================================
 

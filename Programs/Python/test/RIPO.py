@@ -41,8 +41,10 @@ rS = []
 nSa = 4
 
 # Coefficients
-coeffs = {}
-coeffs[RInput.PRESENCE] = [1,1,1,1]
+inputs = []
+inputs.append({'perception': Perception.PRESENCE, 
+               'normalization': Normalization.NONE,
+               'coefficients': [1,1,1,1]})
 
 # Outputs 
 output = [Activation.OUTPUT_ANGLE]
@@ -50,12 +52,12 @@ output = [Activation.OUTPUT_ANGLE]
 # Initial conditions
 IC = {'position': [[-0.3,-0.3], [0.3,0.3]],
       'orientation': [0, 0],
-      'speed': 0.01}
+      'speed': 0.015}
 
 
 E.add_group(Agent.RIPO, len(IC['position']), name='agents',
             initial_condition = IC,
-            nSa = nSa, rS = rS, rmax = None, coefficients=coeffs, output=output)
+            nSa = nSa, rS = rS, rmax = 19, inputs=inputs, output=output)
 
 # # --- RINNO weights --------------------------------------------------------
 
