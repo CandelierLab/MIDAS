@@ -2,6 +2,7 @@
 MIDAS Engine
 '''
 
+import os
 import warnings
 import math, cmath
 import time
@@ -9,6 +10,7 @@ import numpy as np
 import numba as nb
 from numba import cuda
 from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_float32
+import sqlite3
 
 from Animation.Window import Window
 
@@ -117,7 +119,7 @@ class Agents:
     self.N = 0
 
     # Types
-    self.atype = np.empty(0, dtype=np.int16)
+    self.atype = np.empty(0)
 
     # Positions and velocities
     '''
@@ -131,7 +133,7 @@ class Agents:
     self.param = np.empty((0, 2*dimension+1))
 
     # Groups
-    self.group = np.empty(0, dtype=np.int16)
+    self.group = np.empty(0)
 
 # === GROUPS ===============================================================
 
@@ -307,7 +309,13 @@ class Engine:
     self.agents = Agents(dimension)
     self.groups = Groups(dimension)
     
-    # Associated animation
+    # Storage
+    self.storage = None
+    self.db_conn = None
+    self.db_curs = None
+    self.db_commit_each_step = False
+
+    # Animation
     self.window = None
     self.animation = None
 
@@ -401,7 +409,6 @@ class Engine:
     # --- Other agent parameters ---
 
     aparam = np.concatenate((vlim, damax, noise), axis=1)
-    print(self.agents.param.shape, aparam.shape)
     self.agents.param = np.concatenate((self.agents.param, aparam), axis=0)
 
     # --- Group definition -------------------------------------------------
@@ -428,7 +435,7 @@ class Engine:
     self.agents.group = np.concatenate((self.agents.group, iname*np.ones(N, dtype=int)), axis=0)
 
   # ------------------------------------------------------------------------
-  #   Animation setup
+  #   Setups
   # ------------------------------------------------------------------------
 
   def setup_animation(self, style='dark'):
@@ -451,11 +458,91 @@ class Engine:
     # Forbid backward animation
     self.window.allow_backward = False
 
+  def setup_storage(self):
+    '''
+    Setup the sqlite database for storage
+    '''
+
+    # Remove if existing
+    if os.path.exists(self.storage): os.remove(self.storage)
+
+    self.db_conn = sqlite3.connect(self.storage)
+    self.db_curs = self.db_conn.cursor()
+
+    # --- Parameters -----------------------------------------------------------
+
+    self.db_curs.execute('CREATE TABLE Parameters (key TEXT PRIMARY KEY, value INT NOT NULL);')
+    sql_param = 'INSERT INTO Parameters(key,value) VALUES(?,?)'
+
+    self.db_curs.execute(sql_param, ('dimension', self.geom.dimension))
+    self.db_curs.execute(sql_param, ('arena', self.geom.arena))
+    self.db_curs.execute(sql_param, ('arena_X', self.geom.arena_shape[0]))
+    self.db_curs.execute(sql_param, ('periodic_X', self.geom.periodic[0]))
+
+    if self.geom.dimension>1:
+      self.db_curs.execute(sql_param, ('arena_Y', self.geom.arena_shape[1]))
+      self.db_curs.execute(sql_param, ('periodic_Y', self.geom.periodic[1]))
+
+    if self.geom.dimension>2:
+      self.db_curs.execute(sql_param, ('arena_Z', self.geom.arena_shape[2]))
+      self.db_curs.execute(sql_param, ('periodic_Z', self.geom.periodic[2]))
+
+    if self.steps is not None:
+      self.db_curs.execute(sql_param, ('steps', self.steps))
+
+    self.db_curs.execute(sql_param, ('Nagents', self.agents.N))
+    self.db_curs.execute(sql_param, ('Ngroups', self.groups.N))
+
+    # --- Agents -----------------------------------------------------------
+
+    self.db_curs.execute('''CREATE TABLE Agents (
+                         id INTEGER PRIMARY KEY, 
+                         gid INTEGER NOT NULL
+                         );''')
+
+    self.db_curs.executemany('INSERT INTO Agents VALUES (?,?)', 
+      np.column_stack((np.arange(self.agents.N), self.agents.group)))
+
+    # --- Groups -----------------------------------------------------------
+
+    self.db_curs.execute('''CREATE TABLE Groups (
+                         gid INTEGER PRIMARY KEY, 
+                         type INTEGER NOT NULL,
+                         name TEXT,
+                         Nagents INTEGER NOT NULL
+                         );''')
+
+    for gid in range(self.groups.N):
+      self.db_curs.execute('INSERT INTO Groups VALUES (?,?,?,?)', 
+        (gid,
+         self.groups.atype[gid], 
+         self.groups.names[gid], 
+         np.count_nonzero(self.agents.group==gid)))
+
+    # --- Kinematics -------------------------------------------------------
+
+    self.db_curs.execute(f'''CREATE TABLE Kinematics (
+      t INT NOT NULL, 
+      id INT NOT NULL, 
+      x FLOAT,
+      {'y FLOAT,' if self.geom.dimension>1 else ''}
+      {'z FLOAT,' if self.geom.dimension>2 else ''}
+      r FLOAT,
+      {'a FLOAT,' if self.geom.dimension>1 else ''}
+      {'b FLOAT,' if self.geom.dimension>2 else ''}
+      PRIMARY KEY (t, id));''')
+
+    # --- Store modifications ----------------------------------------------
+
+    self.db_conn.commit()
+
   # ------------------------------------------------------------------------
   #   Step
   # ------------------------------------------------------------------------
 
   def step(self, i):
+
+    print('--- step', i)
 
     # Double-buffer computation trick
     if i % 2:
@@ -482,6 +569,11 @@ class Engine:
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
+    # --- DB Storage
+
+    if self.storage is not None:
+      pass
+
     # --- End of simulation
 
     if self.steps is not None and i==self.steps-1:
@@ -499,6 +591,26 @@ class Engine:
   # ------------------------------------------------------------------------
 
   def run(self):
+
+    # === Checks ===========================================================
+
+    # No animation
+    if self.animation is None:
+    
+      # Number of steps
+      if self.steps is None:
+        warnings.warn('The number of steps must be defined when there is no visualization.')
+        return
+      
+      # Storage
+      if self.storage is None:
+        warnings.warn('A storage location must be defined when there is no visualization.')
+        return
+
+    # === Preparation ======================================================
+
+    # Storage
+    self.setup_storage()
 
     if self.verbose:
       print('-'*50)
