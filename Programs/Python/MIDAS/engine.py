@@ -132,7 +132,7 @@ class Agents:
     self.vel = np.empty((0, dimension))
 
     # Agent parameters
-    self.param = np.empty((0, dimension+2))
+    self.param = np.empty((0, 2*dimension+1))
 
     # Groups
     self.group = np.empty(0, dtype=np.int16)
@@ -342,15 +342,28 @@ class Engine:
     vel = np.column_stack((V, alpha))
     
     # Limits
-    vlim = np.ones((N,2), dtype=np.float32)
+    vlim = np.zeros((N,2), dtype=np.float32)
     vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else 0
     vlim[:,1] = kwargs['vmax'] if 'vmax' in kwargs else V
 
+    # --- Reorientation limits
+
+    damax = np.zeros((N,self.geom.dimension-1), dtype=np.float32)
+
+    if self.geom.dimension>1:
+        damax[:,0] = kwargs['damax'] if 'damax' in kwargs else np.pi/6
+
+    if self.geom.dimension>2:
+        damax[:,1] = kwargs['dbmax'] if 'dbmax' in kwargs else np.pi/6
+
     # --- Noise
 
-    noise = np.ones((N,2), dtype=np.float32)
+    noise = np.zeros((N,self.geom.dimension), dtype=np.float32)
     noise[:,0] = kwargs['vnoise'] if 'vnoise' in kwargs else 0
-    noise[:,1] = kwargs['anoise'] if 'anoise' in kwargs else 0
+    if self.geom.dimension>1:
+      noise[:,1] = kwargs['anoise'] if 'anoise' in kwargs else 0
+    if self.geom.dimension>2:
+      noise[:,2] = kwargs['bnoise'] if 'bnoise' in kwargs else 0
 
     # --- Agents definition ------------------------------------------------
 
@@ -366,10 +379,8 @@ class Engine:
 
     # --- Other agent parameters ---
 
-    # Speed and noise
-    aparam = np.concatenate((vlim, noise), axis=1)
-
-    # Agent parameters
+    aparam = np.concatenate((vlim, damax, noise), axis=1)
+    print(self.agents.param.shape, aparam.shape)
     self.agents.param = np.concatenate((self.agents.param, aparam), axis=0)
 
     # --- Group definition -------------------------------------------------
@@ -698,6 +709,7 @@ class CUDA:
         '''
         Agents parameters 
         ├── vlim: speed limits (size=2)
+        ├── damax: reorientation limits (size=dim-1)
         ├── Noise: speed, alpha, beta (size=dim)
         ├── ... (see below for parameters based on each agent type)
         '''
@@ -706,10 +718,19 @@ class CUDA:
         vmin = aparam[i,0]
         vmax = aparam[i,1]
 
-        # Noise
-        vnoise = aparam[i,2]
-        if dim>1: anoise = aparam[i,3]
-        if dim>2: bnoise = aparam[i,4]
+        match dim:
+
+          case 2:
+            damax = aparam[i,2]
+            vnoise = aparam[i,3]
+            anoise = aparam[i,4]
+
+          case 3:
+            damax = aparam[i,2]
+            dbmax = aparam[i,3]
+            vnoise = aparam[i,4]
+            anoise = aparam[i,5]
+            bnoise = aparam[i,6]
 
         # === Computation ======================================================
 
@@ -916,9 +937,7 @@ class CUDA:
 
           # !! Add output handling !!
 
-          da_max = math.pi/6
-
-          da = da_max*(4/math.pi*math.atan(math.exp((WS)/2))-1)
+          da = damax*(4/math.pi*math.atan(math.exp((WS)/2))-1)
 
           # if i==0: 
           #   print(i_pres[0], i_pres[1], i_pres[2], i_pres[3])

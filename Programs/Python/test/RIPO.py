@@ -35,7 +35,7 @@ E.steps = None
 # --- RIPO agents
 
 # Radii of sectors
-rS = []
+rS = [0.1]
 
 # Number of slices
 nSa = 4
@@ -44,16 +44,16 @@ nSa = 4
 inputs = []
 inputs.append({'perception': Perception.PRESENCE, 
                'normalization': Normalization.NONE,
-               'coefficients': [-1, -1, 1, 1]})
+               'coefficients': [1, 1, -1, -1, 0.1, 0.1, -0.1, -0.1]})
 
 # Outputs 
-output = [Activation.OUTPUT_ANGLE]
+outputs = [Activation.OUTPUT_ANGLE]
 
 # Initial conditions
-N = 100 
+N = 100
 IC = {'position': None,
       'orientation': None,
-      'speed': 0.01} 
+      'speed': 0.015} 
 
 # IC = {'position': [[0,0], [0.1,0.3]],
 #       'orientation': [1.5, 0],
@@ -62,7 +62,10 @@ IC = {'position': None,
 
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            nSa = nSa, rS = rS, rmax = None, inputs=inputs, output=output)
+            rS = rS, 
+            rmax = None,
+            nSa = nSa,
+            inputs=inputs, outputs=outputs)
 
 # # --- RINNO weights --------------------------------------------------------
 
@@ -124,7 +127,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # # === Simulation ===========================================================
 
-E.window.autoplay = False
+# E.window.autoplay = False
 # # E.window.movieFile = movieDir + 'Donut.mp4'
 
 E.run()

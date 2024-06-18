@@ -1,17 +1,21 @@
 Add:
-  - PAram: da_max
-  - Output managements
+  - Param: da_max
+  - Output management
 
 Implement RIPO 2D
-  - Presence
   - Orientation
-  - Custom
-  - Field
-
 
 Storage
   - Save to database
   - Replay
+
+Speed test
+
+Smart parameters
+
+Implement RIPO 2D
+  - Custom
+  - Field
 
 Visualization
   - Traces
