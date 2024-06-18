@@ -1,5 +1,6 @@
 Add:
-  - Output management
+  - Switch to weights
+  - Multiple output management
   - Normalisations
 
 Implement RIPO 2D

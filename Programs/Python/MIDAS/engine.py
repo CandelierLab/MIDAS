@@ -165,6 +165,7 @@ class Groups:
     # Lists for cuda
     self.l_nR = []    # Number of radii
     self.l_nZ = []    # Number of zones
+    self.l_nCaf = []  # Number of coefficients for a agent-free input set
     self.l_nI = []    # Number of inputs
 
   # ------------------------------------------------------------------------
@@ -178,6 +179,7 @@ class Groups:
     Update:
       - l_nR
       - l_nZ
+      - l_nCaf
       - l_nI
       - param
         ├── nR              (1)
@@ -189,7 +191,7 @@ class Groups:
         ├── nOut            (1)
         ├──── Perception    (1)   ┐
         ├──── Normalization (1)   │
-        ├──── coeffs        (var) │ As many as input
+        ├──── weights       (var) │ As many as input
         ├──── ...                 ┘
         ├──── Output      (var) ┐
         ├──── ...               ┘ As many as output
@@ -239,10 +241,12 @@ class Groups:
     outputs = kwargs['outputs'] if 'outputs' in kwargs else {Output.REORIENTATION: Activation.ANGLE}
 
     # Number of input sets
-    param.append(len(inputs))
+    nIn = len(inputs)
+    param.append(nIn)
 
     # Number of outputs
-    param.append(len(outputs))
+    nOut = len(outputs)
+    param.append(nOut)
 
     # Number of inputs (=number of coefficients)
     nI = 0
@@ -276,12 +280,11 @@ class Groups:
     else:
       self.param = param[None,:]
 
-    
-
     # --- Update lists -----------------------------------------------------
 
     self.l_nR.append(nR)
     self.l_nZ.append(nR*nSa*nSb)
+    self.l_nCaf.append(nOut*nR*nSa*nSb)
     self.l_nI.append(nI)
 
 # === ENGINE ===============================================================
@@ -343,7 +346,7 @@ class Engine:
     if 'initial_condition' in kwargs:
       initial_condition = kwargs['initial_condition']
     else:
-      initial_condition = {'position': None, 'orientation': None, 'speed': 0.01}
+      initial_condition = {'position': None, 'orientation': None, 'speed': Default.vmax.value}
 
     # --- Positions
 
@@ -365,7 +368,7 @@ class Engine:
     
     # Limits
     vlim = np.zeros((N,2), dtype=np.float32)
-    vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else 0
+    vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value
     vlim[:,1] = kwargs['vmax'] if 'vmax' in kwargs else V
 
     # --- Reorientation limits
@@ -373,19 +376,19 @@ class Engine:
     damax = np.zeros((N,self.geom.dimension-1), dtype=np.float32)
 
     if self.geom.dimension>1:
-        damax[:,0] = kwargs['damax'] if 'damax' in kwargs else np.pi/6
+        damax[:,0] = kwargs['damax'] if 'damax' in kwargs else Default.damax.value
 
     if self.geom.dimension>2:
-        damax[:,1] = kwargs['dbmax'] if 'dbmax' in kwargs else np.pi/6
+        damax[:,1] = kwargs['dbmax'] if 'dbmax' in kwargs else Default.damax.value
 
     # --- Noise
 
     noise = np.zeros((N,self.geom.dimension), dtype=np.float32)
-    noise[:,0] = kwargs['vnoise'] if 'vnoise' in kwargs else 0
+    noise[:,0] = kwargs['vnoise'] if 'vnoise' in kwargs else Default.vnoise.value
     if self.geom.dimension>1:
-      noise[:,1] = kwargs['anoise'] if 'anoise' in kwargs else 0
+      noise[:,1] = kwargs['anoise'] if 'anoise' in kwargs else Default.anoise.value
     if self.geom.dimension>2:
-      noise[:,2] = kwargs['bnoise'] if 'bnoise' in kwargs else 0
+      noise[:,2] = kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value
 
     # --- Agents definition ------------------------------------------------
 
@@ -647,8 +650,8 @@ class CUDA:
     # Expose max sizes as CUDA global variables (for local array dimensions)
     m_nR = max(self.engine.groups.l_nR)
     m_nZ = max(self.engine.groups.l_nZ)
-    m_nCaf = m_nZ
-    m_nCad = m_nZ*self.engine.groups.N
+    m_nCaf = max(self.engine.groups.l_nCaf)
+    m_nCad = m_nCaf*self.engine.groups.N
     m_nI = max(self.engine.groups.l_nI)
 
     print('gparam', self.engine.groups.param)
@@ -732,8 +735,7 @@ class CUDA:
         Agents parameters 
         ├── vlim: speed limits (size=2)
         ├── damax: reorientation limits (size=dim-1)
-        ├── Noise: speed, alpha, beta (size=dim)
-        ├── ... (see below for parameters based on each agent type)
+        ├── noise: speed, alpha, beta (size=dim)
         '''
 
         # Velocity limits
@@ -782,7 +784,7 @@ class CUDA:
           ├── nOut            (1)
           ├──── Perception    (1)   ┐
           ├──── Normalization (1)   │
-          ├──── coeffs        (var) │ As many as input
+          ├──── weights       (var) │ As many as input
           ├──── ...                 ┘
           ├──── Output      (var) ┐
           ├──── ...               ┘ As many as output
@@ -801,10 +803,6 @@ class CUDA:
           # Number of zones
           nZ = nR*nSa*nSb
 
-          # Number of coefficients per input type
-          nc_AFI = nR*nSa*nSb
-          nc_ADI = nG*nR*nSa*nSb
-
           # --- Zones radii
 
           rS = cuda.local.array(m_nR, nb.float32)
@@ -817,15 +815,21 @@ class CUDA:
           # --- Inputs / outputs
 
           # Number of input sets
-          nIs = gparam[gid, nR + dim]
+          nIs = int(gparam[gid, nR + dim])
 
           # Number of outputs
-          nOut = gparam[gid, nR + dim + 1]
+          nOut = int(gparam[gid, nR + dim + 1])
 
           # Input index reference
           kIref = nR + dim + 2
 
-          coeffs = cuda.local.array(m_nI, nb.float32)
+          # Number of coefficients per input type
+          nc_AFI = nOut*nR*nSa*nSb
+          nc_ADI = nOut*nG*nR*nSa*nSb
+
+          # --- Weights
+
+          weights = cuda.local.array(m_nI, nb.float32)
                 
           # Default inputs
           i_pres = None
@@ -848,7 +852,7 @@ class CUDA:
 
                 # Store coefficients
                 for ci in range(nc_ADI):
-                  coeffs[nIn] = gparam[gid, k + 2 + ci]
+                  weights[nIn] = gparam[gid, k + 2 + ci]
                   nIn += 1
 
                 # Update input index
@@ -861,14 +865,29 @@ class CUDA:
 
                 # Store coefficients
                 for ci in range(nc_ADI):
-                  coeffs[nIn] = gparam[gid, k + 2 + ci]
+                  weights[nIn] = gparam[gid, k + 2 + ci]
                   nIn += 1
 
                 # Update input index
                 k += nc_ADI + 2
 
+          # --- Outputs
+
           # Output index reference
           kOref = k
+
+          Out_da = -1
+          Out_dv = -1
+
+          for io in range(nOut):
+
+            match gparam[gid, kOref+io*2]:
+
+              case Output.REORIENTATION.value:
+                Out_da = gparam[gid, kOref+io*2+1]
+
+              case Output.SPEED_MODULATION.value:
+                Out_dv = gparam[gid, kOref+io*2+1]
 
           # === Agent-free perception ======================================
 
@@ -914,14 +933,14 @@ class CUDA:
                 # TODO: Implement other dimensions
                 i_orntC[ig] += z
           
-          # === Inputs and coefficients ====================================
+          # === Inputs and normalizaton ====================================
 
           # Orientation
           if i_ornt is not None:
             for k in range(nc_ADI):
               i_ornt[i] = cmath.phase(i_orntC[i])
 
-          # --- Normalization and coefficients
+          # --- Normalization
         
           # Weighted sum
           WS = 0
@@ -938,7 +957,7 @@ class CUDA:
                   case Normalization.NONE.value:
 
                     for ci in range(nc_ADI):
-                      WS += i_pres[ci]*coeffs[ci]                    
+                      WS += i_pres[ci]*weights[ci]                    
 
                   case Normalization.SAME_RADIUS.value:
                     pass
@@ -958,24 +977,7 @@ class CUDA:
 
                 k += nc_ADI + 2
 
-          
-
           # === Processing =================================================
-
-          # --- Outputs
-
-          Out_da = -1
-          Out_dv = -1
-
-          for io in range(nOut):
-
-            match gparam[gid, kOref+io*2]:
-
-              case Output.REORIENTATION.value:
-                Out_da = gparam[gid, kOref+io*2+1]
-
-              case Output.SPEED_MODULATION.value:
-                Out_dv = gparam[gid, kOref+io*2+1]
 
           # --- Reorientation
 
@@ -993,7 +995,7 @@ class CUDA:
 
             case Activation.SPEED.value:
               dv = 0
-              
+
             case _:
               dv = 0
       

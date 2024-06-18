@@ -44,10 +44,11 @@ nSa = 4
 inputs = []
 inputs.append({'perception': Perception.PRESENCE, 
                'normalization': Normalization.NONE,
-               'coefficients': [1, 1, -1, -1]})
+               'coefficients': [1, 1, -1, -1, -1, 1, 1, -1]})
 
 # Outputs 
-outputs = {Output.REORIENTATION: Activation.ANGLE}
+outputs = {Output.REORIENTATION: Activation.ANGLE,
+           Output.SPEED_MODULATION: Activation.SPEED}
 
 # Initial conditions
 N = 100

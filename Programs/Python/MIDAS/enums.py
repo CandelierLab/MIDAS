@@ -2,14 +2,14 @@
 Enumerations
 '''
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 import numpy as np
 
 # === Arena geometries =====================================================
 
 class Arena(IntEnum):
-  CIRCULAR = np.int32(0)
-  RECTANGULAR = np.int32(1)
+  CIRCULAR = 0
+  RECTANGULAR = 1
 
 # === Agent types ==========================================================
 
@@ -52,3 +52,13 @@ class Output(IntEnum):
 class Activation(IntEnum):
   ANGLE = 0               # Angular activation
   SPEED = 1               # Speed activation
+
+# === Default values =======================================================
+
+class Default(Enum):
+  vmin = 0.               # Minimal speed
+  vmax = 0.01             # Maximal speed
+  damax = np.pi/6         # Maximal reorientation
+  vnoise = 0              # Speed noise
+  anoise = 0              # Angular noise
+  bnoise = 0              # Angular noise
