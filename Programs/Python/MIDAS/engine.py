@@ -185,6 +185,8 @@ class Groups:
         ├── nSb             (1, if dim>2)
         ├── rS              (nR-1)
         ├── rmax            (1)
+        ├── nIs             (1)
+        ├── nOut            (1)
         ├──── Perception    (1)   ┐
         ├──── Normalization (1)   │
         ├──── coeffs        (var) │ As many as input
@@ -193,7 +195,7 @@ class Groups:
         ├──── ...               ┘ As many as output
     '''
 
-    # --- Zones' grid dimensions -------------------------------------------
+    # --- Zones grid dimensions --------------------------------------------
 
     # --- Number of radii
 
@@ -231,9 +233,21 @@ class Groups:
     else:
       param.append(0)
 
-    # --- Inputs and coeffificients    
-    
+    # === Inputs and outputs ===============================================
+
+    inputs = kwargs['inputs'] if 'inputs' in kwargs else []
+    outputs = kwargs['outputs'] if 'outputs' in kwargs else {Output.REORIENTATION: Activation.ANGLE}
+
+    # Number of input sets
+    param.append(len(inputs))
+
+    # Number of outputs
+    param.append(len(outputs))
+
+    # Number of inputs (=number of coefficients)
     nI = 0
+
+    # --- Inputs
 
     for I in kwargs['inputs']:
       param.append(I['perception'])
@@ -241,7 +255,13 @@ class Groups:
       [param.append(c) for c in I['coefficients']]
       nI += np.array(I['coefficients']).size
 
-    # --- Type and size handling
+    # --- Outputs
+
+    for k, v in outputs.items():
+      param.append(k)
+      param.append(v)
+
+    # --- Type and size handling -------------------------------------------
 
     # Convert to numpy
     param = np.array(param, dtype=np.float32)
@@ -256,7 +276,9 @@ class Groups:
     else:
       self.param = param[None,:]
 
-    # --- Update lists
+    
+
+    # --- Update lists -----------------------------------------------------
 
     self.l_nR.append(nR)
     self.l_nZ.append(nR*nSa*nSb)
@@ -756,6 +778,8 @@ class CUDA:
           ├── nSb             (1, if dim>2)
           ├── rS              (nR-1)
           ├── rmax            (1)
+          ├── nIs             (1)
+          ├── nOut            (1)
           ├──── Perception    (1)   ┐
           ├──── Normalization (1)   │
           ├──── coeffs        (var) │ As many as input
@@ -790,9 +814,17 @@ class CUDA:
           # Maximal radius
           rmax = gparam[gid, nR + dim - 1] if gparam[gid, dim+nR-1]>0 else None
 
-          # --- Inputs
+          # --- Inputs / outputs
 
-          kref = nR + dim
+          # Number of input sets
+          nIs = gparam[gid, nR + dim]
+
+          # Number of outputs
+          nOut = gparam[gid, nR + dim + 1]
+
+          # Input index reference
+          kIref = nR + dim + 2
+
           coeffs = cuda.local.array(m_nI, nb.float32)
                 
           # Default inputs
@@ -804,12 +836,9 @@ class CUDA:
           bADInput = False
 
           # Scan inputs
-          k = kref
+          k = kIref
           nIn = 0
-          while True:
-
-            # Break condition
-            if k>=gparam.shape[1]: break
+          for iS in range(nIs):
 
             match gparam[gid, k]:                  
 
@@ -838,6 +867,9 @@ class CUDA:
                 # Update input index
                 k += nc_ADI + 2
 
+          # Output index reference
+          kOref = k
+
           # === Agent-free perception ======================================
 
           # TO DO
@@ -853,10 +885,6 @@ class CUDA:
 
               # Distance and relative orientation
               z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
-
-              # if i==0:
-              #   print('---------')
-              #   print(z.real, z.imag, v0[i,1], cmath.phase(z), cmath.phase(z)% (2*math.pi))
 
               # Skip agents out of reach (further than rmax)
               if not status: continue
@@ -898,11 +926,8 @@ class CUDA:
           # Weighted sum
           WS = 0
           
-          k = kref
-          while True:
-
-            # Break condition
-            if k>=gparam.shape[1]: break
+          k = kIref
+          for iS in range(nIs):
 
             match gparam[gid, k]:                  
 
@@ -933,17 +958,44 @@ class CUDA:
 
                 k += nc_ADI + 2
 
+          
+
           # === Processing =================================================
 
-          # !! Add output handling !!
+          # --- Outputs
 
-          da = damax*(4/math.pi*math.atan(math.exp((WS)/2))-1)
+          Out_da = -1
+          Out_dv = -1
 
-          # if i==0: 
-          #   print(i_pres[0], i_pres[1], i_pres[2], i_pres[3])
-          #   print(WS, da)
+          for io in range(nOut):
 
-          dv = 0
+            match gparam[gid, kOref+io*2]:
+
+              case Output.REORIENTATION.value:
+                Out_da = gparam[gid, kOref+io*2+1]
+
+              case Output.SPEED_MODULATION.value:
+                Out_dv = gparam[gid, kOref+io*2+1]
+
+          # --- Reorientation
+
+          match Out_da:
+
+            case Activation.ANGLE.value:
+              da = damax*(4/math.pi*math.atan(math.exp((WS)/2))-1)
+
+            case _:
+              da = 0
+
+          # --- Speed modulation
+          
+          match Out_dv:
+
+            case Activation.SPEED.value:
+              dv = 0
+              
+            case _:
+              dv = 0
       
 
         # === Update =======================================================

@@ -1,6 +1,6 @@
 Add:
-  - Param: da_max
   - Output management
+  - Normalisations
 
 Implement RIPO 2D
   - Orientation
