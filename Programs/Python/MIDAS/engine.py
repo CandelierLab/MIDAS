@@ -15,10 +15,6 @@ from Animation.Window import Window
 from MIDAS.enums import *
 import MIDAS.animation
 
-# import sys
-# sys.path.append("/home/raphael/Science/Projects/Toolboxes/MIDAS/Programs/Python/test/")
-# import RIPO
-
 # === GEOMETRY =============================================================
 
 class Geometry:
@@ -1053,7 +1049,7 @@ def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_
     '''
 
     # Complex polar coordinates
-    z = complex(y0-y1, x1-x0)
+    z = complex(x1-x0, y1-y0)
 
   elif arena==Arena.RECTANGULAR.value:
     '''

@@ -1,10 +1,9 @@
-Add:
-  - Switch to weights
-  - Multiple output management
-  - Normalisations
-
-Implement RIPO 2D
-  - Orientation
+Rationalisation:
+- Implement orientation
+- Custom
+- Field
+- Normalisations
+- Multiple output management
 
 Storage
   - Save to database
@@ -13,10 +12,6 @@ Storage
 Speed test
 
 Smart parameters
-
-Implement RIPO 2D
-  - Custom
-  - Field
 
 Visualization
   - Traces

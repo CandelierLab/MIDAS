@@ -15,10 +15,10 @@ os.system('clear')
 
 # === Engine ===============================================================
 
-E = Engine()
-# E = Engine(arena=Arena.CIRCULAR)
+# E = Engine()
+E = Engine(arena=Arena.CIRCULAR)
 
-# # Number of steps
+# Number of steps
 E.steps = None
 
 # Verbose
@@ -44,17 +44,16 @@ nSa = 4
 inputs = []
 inputs.append({'perception': Perception.PRESENCE, 
                'normalization': Normalization.NONE,
-               'coefficients': [1, 1, -1, -1, -1, 1, 1, -1]})
+               'coefficients': [1, 1, -1, -1]})
 
 # Outputs 
-outputs = {Output.REORIENTATION: Activation.ANGLE,
-           Output.SPEED_MODULATION: Activation.SPEED}
+outputs = {Output.REORIENTATION: Activation.ANGLE}
 
 # Initial conditions
 N = 100
 IC = {'position': None,
       'orientation': None,
-      'speed': 0.015} 
+      'speed': 0.01} 
 
 # IC = {'position': [[0,0], [0.1,0.3]],
 #       'orientation': [1.5, 0],
@@ -128,7 +127,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # # === Simulation ===========================================================
 
-E.window.autoplay = False
+# E.window.autoplay = False
 # # E.window.movieFile = movieDir + 'Donut.mp4'
 
 E.run()
