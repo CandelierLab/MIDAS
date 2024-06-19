@@ -9,17 +9,15 @@ os.system('clear')
 
 # === Parameters ===========================================================
 
-# Nagents = 100
-
 # movieDir = project.root + '/Movies/TAPAs/'
 
 # === Engine ===============================================================
 
-E = Engine()
-# E = Engine(arena=Arena.CIRCULAR)
+# E = Engine()
+E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
-E.steps = 10
+E.steps = 100
 
 # Verbose
 # E.verbose = False

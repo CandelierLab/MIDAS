@@ -6,6 +6,10 @@ import os
 import numpy as np
 import sqlite3
 
+from MIDAS.enums import *
+
+# === STORAGE ==============================================================
+
 class Storage():
 
   def __init__(self, db_file, verbose = False):
@@ -17,14 +21,6 @@ class Storage():
 
     self.db_file = db_file
 
-    # Remove if existing
-    if os.path.exists(self.db_file):
-
-      if self.verbose:
-        print('Removing existing database')
-
-      os.remove(self.db_file)
-
     # Create directory if not existing
     db_dir = os.path.dirname(self.db_file)
     if not os.path.exists(db_dir): 
@@ -34,10 +30,16 @@ class Storage():
 
       os.makedirs(db_dir)
 
-    # --- DB properties
+    # --- Connection
 
-    self.db_conn = None
-    self.db_curs = None
+    if not os.path.exists(self.db_file) and self.verbose:
+        print('Creating database')
+
+    self.db_conn = sqlite3.connect(self.db_file)
+    self.db_curs = self.db_conn.cursor()
+
+    # --- DB properties
+    
     self.db_commit_each_step = False
 
     # --- Engine properties
@@ -54,30 +56,49 @@ class Storage():
     self.dimension = engine.geom.dimension
     self.Nagents = engine.agents.N
 
-    self.db_conn = sqlite3.connect(self.db_file)
-    self.db_curs = self.db_conn.cursor()
+    # --- File and directory management ------------------------------------
+
+    # Remove if existing
+    if os.path.exists(self.db_file):
+
+      if self.verbose:
+        print('Removing existing database')
+
+      os.remove(self.db_file)
+
+      if self.verbose:
+        print('Creating database')
+
+      self.db_conn = sqlite3.connect(self.db_file)
+      self.db_curs = self.db_conn.cursor()
 
     if self.verbose:
-      print('Creating database')
+      print('Initializing database')
 
-    # --- Parameters -----------------------------------------------------------
+    # --- Parameters -------------------------------------------------------
 
     self.db_curs.execute('CREATE TABLE Parameters (key TEXT PRIMARY KEY, value INT NOT NULL);')
     sql_param = 'INSERT INTO Parameters(key,value) VALUES(?,?)'
+
+    match engine.geom.arena:
+      case Arena.CIRCULAR:
+        periodic = [0, 0, 0]
+      case Arena.RECTANGULAR:
+        self.periodic = engine.geom.periodic
 
     self.db_curs.execute(sql_param, ('db_version', self.version))
     self.db_curs.execute(sql_param, ('dimension', self.dimension))
     self.db_curs.execute(sql_param, ('arena', engine.geom.arena))
     self.db_curs.execute(sql_param, ('arena_X', engine.geom.arena_shape[0]))
-    self.db_curs.execute(sql_param, ('periodic_X', engine.geom.periodic[0]))
+    self.db_curs.execute(sql_param, ('periodic_X', periodic[0]))
 
     if self.dimension>1:
       self.db_curs.execute(sql_param, ('arena_Y', engine.geom.arena_shape[1]))
-      self.db_curs.execute(sql_param, ('periodic_Y', engine.geom.periodic[1]))
+      self.db_curs.execute(sql_param, ('periodic_Y', periodic[1]))
 
     if self.dimension>2:
       self.db_curs.execute(sql_param, ('arena_Z', engine.geom.arena_shape[2]))
-      self.db_curs.execute(sql_param, ('periodic_Z', engine.geom.periodic[2]))
+      self.db_curs.execute(sql_param, ('periodic_Z', periodic[2]))
 
     if engine.steps is not None:
       self.db_curs.execute(sql_param, ('steps', engine.steps))
@@ -143,3 +164,4 @@ class Storage():
 
     if self.db_commit_each_step:
       self.db_conn.commit()
+

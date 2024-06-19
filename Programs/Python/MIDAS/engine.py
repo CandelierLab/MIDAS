@@ -13,7 +13,7 @@ from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_
 
 from Animation.Window import Window
 
-import MIDAS.storage
+from MIDAS.storage import Storage
 from MIDAS.enums import *
 import MIDAS.animation
 
@@ -144,7 +144,7 @@ class Groups:
   NB: All agents in a group have the same type
   '''
 
-  def __init__(self, dimension):
+  def __init__(self, dimension=None):
   
     self.dimension = dimension
 
@@ -463,7 +463,7 @@ class Engine:
     self.run().
     '''
 
-    self.storage = MIDAS.storage.Storage(db_file, verbose=self.verbose)
+    self.storage = Storage(db_file, verbose=self.verbose)
 
   # ------------------------------------------------------------------------
   #   Step
@@ -542,9 +542,13 @@ class Engine:
 
     # === Preparation ======================================================
 
-    # Initialize storage
     if self.storage is not None:
+
+      # Initialize storage
       self.storage.initialize(self)
+
+      # Initial state
+      self.storage.insert_step(0, self.agents.pos, self.agents.vel)
 
     if self.verbose:
       print('-'*50)

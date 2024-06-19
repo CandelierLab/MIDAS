@@ -1,12 +1,10 @@
 Rationalisation:
+- Remove agents atype
 - Implement orientation
 - Custom
 - Field
 - Normalisations
 - Multiple output management
-
-Storage
-  - Replay
 
 Speed test
 

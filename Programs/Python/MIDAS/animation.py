@@ -89,7 +89,7 @@ class Animation2d(Animation_2d):
           self.add(line, 'boundary_left', points = pts_left, color = 'white', thickness=thickness)
           self.add(line, 'boundary_right', points = pts_right, color = 'white', thickness=thickness)
 
-        # X-periodicity
+        # Y-periodicity
         if self.engine.geom.periodic[1]:
           self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--', thickness=thickness)
           self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--', thickness=thickness)
@@ -144,7 +144,7 @@ class Animation2d(Animation_2d):
 
       # --- Shape
 
-      if self.engine.agents.atype[i]==Agent.FIXED:
+      if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
         '''
         Fixed agents
         '''
@@ -287,7 +287,7 @@ class Animation2d(Animation_2d):
     for i in range(self.engine.agents.N):
 
       # Skip fixed agents
-      if self.engine.agents.atype[i]==0: continue
+      if self.engine.groups.atype[int(self.engine.agents.group[i])]==0: continue
 
       # Position
       self.item[i].position = self.engine.agents.pos[i]
