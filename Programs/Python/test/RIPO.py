@@ -35,7 +35,7 @@ E.steps = 100
 # --- RIPO agents
 
 # Radii of sectors
-rS = []
+rS = [0.1]
 
 # Number of slices
 nSa = 4
@@ -45,6 +45,10 @@ inputs = []
 inputs.append({'perception': Perception.PRESENCE, 
                'normalization': Normalization.NONE,
                'coefficients': [1, 1, -1, -1]})
+
+# inputs.append({'perception': Perception.ORIENTATION, 
+#                'normalization': Normalization.NONE,
+#                'coefficients': [1, 1, 1, 1, 0, 0, 0, 0]})
 
 # Outputs 
 outputs = {Output.REORIENTATION: Activation.ANGLE}
@@ -86,7 +90,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 
-# E.window.autoplay = False
+E.window.autoplay = False
 # # E.window.movieFile = movieDir + 'Donut.mp4'
 
 E.run()

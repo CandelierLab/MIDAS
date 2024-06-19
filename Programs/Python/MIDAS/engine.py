@@ -714,7 +714,6 @@ class CUDA:
 
     # Expose max sizes as CUDA global variables (for local array dimensions)
     m_nR = max(self.engine.groups.l_nR)
-    m_nZ = max(self.engine.groups.l_nZ)
     m_nCaf = max(self.engine.groups.l_nCaf)
     m_nCad = m_nCaf*self.engine.groups.N
     m_nI = max(self.engine.groups.l_nI)
@@ -871,9 +870,6 @@ class CUDA:
           nSa = int(gparam[gid, 2]) if dim>1 else 1
           nSb = int(gparam[gid, 3]) if dim>2 else 1
 
-          # Number of zones
-          nZ = nR*nSa*nSb
-
           # --- Zones radii
 
           rS = cuda.local.array(m_nR, nb.float32)
@@ -1016,37 +1012,37 @@ class CUDA:
           # Weighted sum
           WS = 0
           
-          k = kIref
-          for iS in range(nIs):
+          # k = kIref
+          # for iS in range(nIs):
 
-            match gparam[gid, k]:                  
+          #   match gparam[gid, k]:                  
 
-              case Perception.PRESENCE.value:
+          #     case Perception.PRESENCE.value:
 
-                match gparam[gid, k+1]:
+          #       match gparam[gid, k+1]:
 
-                  case Normalization.NONE.value:
+          #         case Normalization.NONE.value:
 
-                    for ci in range(nc_ADI):
-                      WS += i_pres[ci]*weights[ci]                    
+          #           for ci in range(nc_ADI):
+          #             WS += i_pres[ci]*weights[ci]                    
 
-                  case Normalization.SAME_RADIUS.value:
-                    pass
+          #         case Normalization.SAME_RADIUS.value:
+          #           pass
 
-                  case Normalization.SAME_SLICE.value:
-                    pass
+          #         case Normalization.SAME_SLICE.value:
+          #           pass
 
-                  case Normalization.ALL.value:
-                    pass
+          #         case Normalization.ALL.value:
+          #           pass
 
-                # Update k
-                k += nc_ADI + 2
+          #       # Update k
+          #       k += nc_ADI + 2
 
-              case Perception.ORIENTATION.value:
-                i_orntC[ig] += z
-                # TODO
+          #     case Perception.ORIENTATION.value:
+          #       i_orntC[ig] += z
+          #       # TODO
 
-                k += nc_ADI + 2
+          #       k += nc_ADI + 2
 
           # === Processing =================================================
 
