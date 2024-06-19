@@ -120,7 +120,7 @@ class Agents:
     self.N = 0
 
     # Types
-    self.atype = np.empty(0)
+    # self.atype = np.empty(0)
 
     # Positions and velocities
     '''
@@ -131,7 +131,7 @@ class Agents:
     self.vel = np.empty((0, dimension))
 
     # Agent parameters
-    self.param = np.empty((0, 2*dimension+1))
+    self.param = np.empty((0, 2*dimension+2))
 
     # Groups
     self.group = np.empty(0)
@@ -181,6 +181,7 @@ class Groups:
       - l_nCaf
       - l_nI
       - param
+        ├── atype           (1)
         ├── nR              (1)
         ├── nSa             (1, if dim>1) 
         ├── nSb             (1, if dim>2)
@@ -206,7 +207,7 @@ class Groups:
     else:
       nR = 1
 
-    param = [nR]
+    param = [Agent.RIPO, nR]
 
     # --- Angular slices
 
@@ -369,6 +370,20 @@ class Engine:
       alpha = np.array(initial_condition['orientation'])
     vel = np.column_stack((V, alpha))
     
+
+    # --- Agents definition ------------------------------------------------
+
+    self.agents.N += N
+
+    # Position and speed
+    self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
+    self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
+
+    # --- Other agent parameters ---
+
+    # Group
+    group = np.full((N,1), self.groups.N)
+
     # Limits
     vlim = np.zeros((N,2), dtype=np.float32)
     vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value
@@ -393,21 +408,8 @@ class Engine:
     if self.geom.dimension>2:
       noise[:,2] = kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value
 
-    # --- Agents definition ------------------------------------------------
+    aparam = np.concatenate((group, vlim, damax, noise), axis=1)
 
-    self.agents.N += N
-
-    # Agent type    
-    self.agents.atype = np.concatenate((self.agents.atype, 
-                                        gtype.value*np.ones(N, dtype=int)), axis=0)
-
-    # Position and speed
-    self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
-    self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
-
-    # --- Other agent parameters ---
-
-    aparam = np.concatenate((vlim, damax, noise), axis=1)
     self.agents.param = np.concatenate((self.agents.param, aparam), axis=0)
 
     # --- Group definition -------------------------------------------------
@@ -478,8 +480,7 @@ class Engine:
     # Double-buffer computation trick
     if i % 2:
       
-      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](
-        self.cuda.geom, self.cuda.atype, self.cuda.group,
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
@@ -490,8 +491,7 @@ class Engine:
 
     else:
 
-      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](
-        self.cuda.geom, self.cuda.atype, self.cuda.group,
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
       
@@ -562,8 +562,6 @@ class Engine:
     self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
 
     # Send arrays to device
-    self.cuda.atype = cuda.to_device(self.agents.atype.astype(np.int16))
-    self.cuda.group = cuda.to_device(self.agents.group.astype(np.int16))
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
     self.cuda.aparam = cuda.to_device(self.agents.param.astype(np.float32))
@@ -700,8 +698,6 @@ class CUDA:
     self.v1 = None
 
     # Other required arrays
-    self.atype = None
-    self.group = None
     self.aparam = None
     self.gparam = None
     self.input = None
@@ -735,7 +731,7 @@ class CUDA:
     # --------------------------------------------------------------------------
     
     @cuda.jit
-    def CUDA_step(geom, atype, group, p0, v0, p1, v1, aparam, gparam, rng):
+    def CUDA_step(geom, p0, v0, p1, v1, aparam, gparam, rng):
       '''
       The CUDA kernel
       '''
@@ -744,15 +740,22 @@ class CUDA:
 
       if i<p0.shape[0]:
 
+        # Number of agents and dimension
         N, dim = p0.shape
+
+        # Group id
+        gid = int(aparam[i, 0])
+
+        # Agent type
+        atype = int(gparam[gid, 0])
         
         # === Fixed points =====================================================
 
-        if atype[i]==Agent.FIXED.value:
+        if atype==Agent.FIXED.value:
           for j in range(dim):
             p1[i,j] = p0[i,j]
 
-        # === Deserialization of the parameters ================================
+        # === Extracting parameters ============================================
 
         # --- Geometric parameters ---------------------------------------------
         '''
@@ -802,28 +805,29 @@ class CUDA:
         # --- Agent parameters -------------------------------------------------
         '''
         Agents parameters 
-        ├── vlim: speed limits (size=2)
-        ├── damax: reorientation limits (size=dim-1)
-        ├── noise: speed, alpha, beta (size=dim)
+        ├── group                       (1)
+        ├── vlim: speed limits          (2)
+        ├── damax: reorientation limits (dim-1)
+        ├── noise: speed, alpha, beta   (dim)
         '''
 
         # Velocity limits
-        vmin = aparam[i,0]
-        vmax = aparam[i,1]
+        vmin = aparam[i,1]
+        vmax = aparam[i,2]
 
         match dim:
 
           case 2:
-            damax = aparam[i,2]
-            vnoise = aparam[i,3]
-            anoise = aparam[i,4]
-
-          case 3:
-            damax = aparam[i,2]
-            dbmax = aparam[i,3]
+            damax = aparam[i,3]
             vnoise = aparam[i,4]
             anoise = aparam[i,5]
-            bnoise = aparam[i,6]
+
+          case 3:
+            damax = aparam[i,3]
+            dbmax = aparam[i,4]
+            vnoise = aparam[i,5]
+            anoise = aparam[i,6]
+            bnoise = aparam[i,7]
 
         # === Computation ======================================================
 
@@ -833,17 +837,15 @@ class CUDA:
 
         # --- RIPO agents ------------------------------------------------------
 
-        if atype[i]==Agent.RIPO.value:
+        if atype==Agent.RIPO.value:
 
           # Number of groups
           nG = gparam.shape[0]
 
-          # Group id
-          gid = int(group[i])
-
           # === Deserialization of the RIPO parameters ===
           '''
           RIPO
+          ├── atype           (1)
           ├── nR              (1)
           ├── nSa             (1, if dim>1) 
           ├── nSb             (1, if dim>2)
@@ -862,12 +864,12 @@ class CUDA:
           # --- Radial limits
 
           # Number of zones per slice
-          nR = int(gparam[gid, 0])
+          nR = int(gparam[gid, 1])
 
           # --- Angular slices
 
-          nSa = int(gparam[gid, 1]) if dim>1 else 1
-          nSb = int(gparam[gid, 2]) if dim>2 else 1
+          nSa = int(gparam[gid, 2]) if dim>1 else 1
+          nSb = int(gparam[gid, 3]) if dim>2 else 1
 
           # Number of zones
           nZ = nR*nSa*nSb
@@ -876,21 +878,21 @@ class CUDA:
 
           rS = cuda.local.array(m_nR, nb.float32)
           for ri in range(nR-1):
-            rS[ri] = gparam[gid, dim+ri]
+            rS[ri] = gparam[gid, dim+ri+1]
 
           # Maximal radius
-          rmax = gparam[gid, nR + dim - 1] if gparam[gid, dim+nR-1]>0 else None
+          rmax = gparam[gid, nR + dim] if gparam[gid, nR + dim]>0 else None
 
           # --- Inputs / outputs
 
           # Number of input sets
-          nIs = int(gparam[gid, nR + dim])
+          nIs = int(gparam[gid, nR + dim + 1])
 
           # Number of outputs
-          nOut = int(gparam[gid, nR + dim + 1])
+          nOut = int(gparam[gid, nR + dim + 2])
 
           # Input index reference
-          kIref = nR + dim + 2
+          kIref = nR + dim + 3
 
           # Number of coefficients per input type
           nc_AFI = nOut*nR*nSa*nSb
@@ -1068,7 +1070,6 @@ class CUDA:
             case _:
               dv = 0
       
-
         # === Update =======================================================
 
         match dim:
