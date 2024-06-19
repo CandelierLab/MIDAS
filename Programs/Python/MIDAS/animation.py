@@ -105,7 +105,7 @@ class Animation2d(Animation_2d):
     for i in range(self.engine.agents.N):
 
       # Group options
-      opt = self.options[self.engine.groups.names[self.engine.agents.group[i]]]
+      opt = self.options[self.engine.groups.names[int(self.engine.agents.group[i])]]
 
       # --- Color
 

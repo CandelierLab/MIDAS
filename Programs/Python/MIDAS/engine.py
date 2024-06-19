@@ -10,10 +10,10 @@ import numpy as np
 import numba as nb
 from numba import cuda
 from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_float32
-import sqlite3
 
 from Animation.Window import Window
 
+import MIDAS.storage
 from MIDAS.enums import *
 import MIDAS.animation
 
@@ -311,9 +311,6 @@ class Engine:
     
     # Storage
     self.storage = None
-    self.db_conn = None
-    self.db_curs = None
-    self.db_commit_each_step = False
 
     # Animation
     self.window = None
@@ -458,83 +455,15 @@ class Engine:
     # Forbid backward animation
     self.window.allow_backward = False
 
-  def setup_storage(self):
+  def setup_storage(self, db_file):
     '''
     Setup the sqlite database for storage
+
+    NB: DB initialization (creation and initial filling) is performed during 
+    self.run().
     '''
 
-    # Remove if existing
-    if os.path.exists(self.storage): os.remove(self.storage)
-
-    self.db_conn = sqlite3.connect(self.storage)
-    self.db_curs = self.db_conn.cursor()
-
-    # --- Parameters -----------------------------------------------------------
-
-    self.db_curs.execute('CREATE TABLE Parameters (key TEXT PRIMARY KEY, value INT NOT NULL);')
-    sql_param = 'INSERT INTO Parameters(key,value) VALUES(?,?)'
-
-    self.db_curs.execute(sql_param, ('dimension', self.geom.dimension))
-    self.db_curs.execute(sql_param, ('arena', self.geom.arena))
-    self.db_curs.execute(sql_param, ('arena_X', self.geom.arena_shape[0]))
-    self.db_curs.execute(sql_param, ('periodic_X', self.geom.periodic[0]))
-
-    if self.geom.dimension>1:
-      self.db_curs.execute(sql_param, ('arena_Y', self.geom.arena_shape[1]))
-      self.db_curs.execute(sql_param, ('periodic_Y', self.geom.periodic[1]))
-
-    if self.geom.dimension>2:
-      self.db_curs.execute(sql_param, ('arena_Z', self.geom.arena_shape[2]))
-      self.db_curs.execute(sql_param, ('periodic_Z', self.geom.periodic[2]))
-
-    if self.steps is not None:
-      self.db_curs.execute(sql_param, ('steps', self.steps))
-
-    self.db_curs.execute(sql_param, ('Nagents', self.agents.N))
-    self.db_curs.execute(sql_param, ('Ngroups', self.groups.N))
-
-    # --- Agents -----------------------------------------------------------
-
-    self.db_curs.execute('''CREATE TABLE Agents (
-                         id INTEGER PRIMARY KEY, 
-                         gid INTEGER NOT NULL
-                         );''')
-
-    self.db_curs.executemany('INSERT INTO Agents VALUES (?,?)', 
-      np.column_stack((np.arange(self.agents.N), self.agents.group)))
-
-    # --- Groups -----------------------------------------------------------
-
-    self.db_curs.execute('''CREATE TABLE Groups (
-                         gid INTEGER PRIMARY KEY, 
-                         type INTEGER NOT NULL,
-                         name TEXT,
-                         Nagents INTEGER NOT NULL
-                         );''')
-
-    for gid in range(self.groups.N):
-      self.db_curs.execute('INSERT INTO Groups VALUES (?,?,?,?)', 
-        (gid,
-         self.groups.atype[gid], 
-         self.groups.names[gid], 
-         np.count_nonzero(self.agents.group==gid)))
-
-    # --- Kinematics -------------------------------------------------------
-
-    self.db_curs.execute(f'''CREATE TABLE Kinematics (
-      t INT NOT NULL, 
-      id INT NOT NULL, 
-      x FLOAT,
-      {'y FLOAT,' if self.geom.dimension>1 else ''}
-      {'z FLOAT,' if self.geom.dimension>2 else ''}
-      r FLOAT,
-      {'a FLOAT,' if self.geom.dimension>1 else ''}
-      {'b FLOAT,' if self.geom.dimension>2 else ''}
-      PRIMARY KEY (t, id));''')
-
-    # --- Store modifications ----------------------------------------------
-
-    self.db_conn.commit()
+    self.storage = MIDAS.storage.Storage(db_file, verbose=self.verbose)
 
   # ------------------------------------------------------------------------
   #   Step
@@ -542,7 +471,7 @@ class Engine:
 
   def step(self, i):
 
-    print('--- step', i)
+    # print('--- step', i)
 
     # Double-buffer computation trick
     if i % 2:
@@ -572,15 +501,19 @@ class Engine:
     # --- DB Storage
 
     if self.storage is not None:
-      pass
+      self.storage.insert_step(i, self.agents.pos, self.agents.vel)
 
     # --- End of simulation
 
-    if self.steps is not None and i==self.steps-1:
+    if self.steps is not None and i>=self.steps-1:
 
       # End of simulation
       if self.verbose:
         print('→ End of simulation @ {:d} steps ({:.2f} s)'.format(self.steps, time.time()-self.tref))
+
+      # End storage
+      if self.storage is not None:
+        self.storage.db_conn.commit()
 
       # End display
       if self.animation is not None:
@@ -609,8 +542,9 @@ class Engine:
 
     # === Preparation ======================================================
 
-    # Storage
-    self.setup_storage()
+    # Initialize storage
+    if self.storage is not None:
+      self.storage.initialize(self)
 
     if self.verbose:
       print('-'*50)
@@ -697,7 +631,10 @@ class Engine:
     # --- Main loop --------------------------------------------------------
 
     if self.animation is None:
-      i = 0
+      '''
+      It is important that steps start at 1, step=0 being the initial state
+      '''
+      i = 1
       while self.steps is None or i<self.steps:
         self.step(i)
         i += 1

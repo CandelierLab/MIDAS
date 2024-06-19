@@ -19,7 +19,7 @@ E = Engine()
 # E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
-E.steps = 1
+E.steps = 10
 
 # Verbose
 # E.verbose = False
@@ -69,17 +69,12 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # === Storage ==============================================================
 
-E.storage = '/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db'
+E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
 
 # === Visualization ========================================================
 
-# E.setup_animation()
-
-# --- Agents settings 
-
-# E.animation.options['fixed']['color'] = 'grey'
-# E.animation.options['agents']['cmap'] = 'hsv'
-# E.animation.options['agents']['cmap_on'] = 'index'
+E.setup_animation()
+E.animation.options['agents']['cmap'] = 'hsv'
 
 # --- Information
 
