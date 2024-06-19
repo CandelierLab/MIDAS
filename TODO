@@ -7,7 +7,6 @@ Rationalisation:
 - Multiple output management
 
 Speed test
-- Update simulation status
 
 Smart parameters
 
@@ -15,7 +14,6 @@ Visualization
   - Traces
   - Density field
   - Informations
-  - 1 frame every n
 
 ---------------------------------------------------------
 

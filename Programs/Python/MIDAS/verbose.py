@@ -68,6 +68,24 @@ class cli_Reporter():
     # Display
     self.send(S, level)
 
+  def get_caller(self, stack_level=3):
+
+    caller = inspect.stack()[stack_level][0].f_locals
+    if 'self' in caller:
+
+      caller_type = caller['self'].__class__.__name__
+
+      match caller_type:
+
+        case 'Engine':
+          return Fore.CYAN + f'[Engine ]' + Style.RESET_ALL
+        
+        case 'Storage':
+          return Fore.GREEN + f'[Storage]' + Style.RESET_ALL
+
+    else:
+      return Fore.RED + f'[Script]' + Style.RESET_ALL
+
   def send(self, s, level):
     '''
     Send a verbose message to the CLI
@@ -75,21 +93,9 @@ class cli_Reporter():
 
     if level<=self.level:
 
-      # --- Caller
+      # Caller
+      print(self.get_caller() + ' ', end='')
 
-      caller = inspect.stack()[2][0].f_locals
-      if 'self' in caller:
-
-        caller_type = caller['self'].__class__.__name__
-
-        match caller_type:
-
-          case 'Engine':
-            print(Fore.CYAN + f'[Engine]  ' + Style.RESET_ALL, end='')
-
-      else:
-        print(Fore.RED + f'[Script] ' + Style.RESET_ALL, end='')
-
-      # --- Verbose message
-      
-      print(s)
+      # Verbose message      
+      if s is not None:
+        print(s)

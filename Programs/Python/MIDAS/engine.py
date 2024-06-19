@@ -633,7 +633,10 @@ class Engine:
       '''
       It is important that steps start at 1, step=0 being the initial state
       '''
+
       with alive_bar(self.steps) as bar:
+        
+        bar.title = self.verbose.get_caller(1)
         for step in range(self.steps):
           if step: self.step(step)
           bar()

@@ -7,15 +7,16 @@ import numpy as np
 import sqlite3
 
 from MIDAS.enums import *
+from MIDAS.verbose import Verbose
 
 # === STORAGE ==============================================================
 
 class Storage():
 
-  def __init__(self, db_file, verbose = False):
+  def __init__(self, db_file, verbose=None):
 
     self.version = 1
-    self.verbose = verbose
+    self.verbose = Verbose() if verbose is None else verbose
 
     # --- Database source file
 
@@ -25,15 +26,13 @@ class Storage():
     db_dir = os.path.dirname(self.db_file)
     if not os.path.exists(db_dir): 
 
-      if self.verbose:
-        print('Creating folder', db_dir)
-
+      self.verbose(f'Creating folder {db_dir}')
       os.makedirs(db_dir)
 
     # --- Connection
 
-    if not os.path.exists(self.db_file) and self.verbose:
-        print('Creating database')
+    if not os.path.exists(self.db_file):
+      self.verbose('Creating database')
 
     self.db_conn = sqlite3.connect(self.db_file)
     self.db_curs = self.db_conn.cursor()
@@ -61,19 +60,16 @@ class Storage():
     # Remove if existing
     if os.path.exists(self.db_file):
 
-      if self.verbose:
-        print('Removing existing database')
+      self.verbose('Removing existing database')
 
       os.remove(self.db_file)
 
-      if self.verbose:
-        print('Creating database')
+      self.verbose('Creating database')
 
       self.db_conn = sqlite3.connect(self.db_file)
       self.db_curs = self.db_conn.cursor()
 
-    if self.verbose:
-      print('Initializing database')
+    self.verbose('Initializing database')
 
     # --- Parameters -------------------------------------------------------
 

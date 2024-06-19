@@ -317,6 +317,5 @@ class Animation2d(Animation_2d):
     Method triggered on animation exit
     '''
     
-    # pass
     if self.is_running:
       self.engine.end()
