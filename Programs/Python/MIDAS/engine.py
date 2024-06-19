@@ -16,6 +16,7 @@ from Animation.Window import Window
 from MIDAS.storage import Storage
 from MIDAS.enums import *
 import MIDAS.animation
+import MIDAS.verbose
 
 # === GEOMETRY =============================================================
 
@@ -329,7 +330,8 @@ class Engine:
 
     # --- Misc attributes
     
-    self.verbose = True
+    self.verbose = MIDAS.verbose.cli_Reporter()
+    self.verbose.level = Verbose.NORMAL
 
   # ------------------------------------------------------------------------
   #   Add group
@@ -503,21 +505,10 @@ class Engine:
     if self.storage is not None:
       self.storage.insert_step(i, self.agents.pos, self.agents.vel)
 
-    # --- End of simulation
+    # --- End of simulation (animation)
 
-    if self.steps is not None and i>=self.steps-1:
-
-      # End of simulation
-      if self.verbose:
-        print('→ End of simulation @ {:d} steps ({:.2f} s)'.format(self.steps, time.time()-self.tref))
-
-      # End storage
-      if self.storage is not None:
-        self.storage.db_conn.commit()
-
-      # End display
-      if self.animation is not None:
-        self.animation.window.close()
+    if self.animation is not None and self.steps is not None and i>=self.steps-1:
+      self.end()
 
   # ------------------------------------------------------------------------
   #   Run
@@ -550,9 +541,10 @@ class Engine:
       # Initial state
       self.storage.insert_step(0, self.agents.pos, self.agents.vel)
 
-    if self.verbose:
-      print('-'*50)
-      print(f'Running simulation with {self.steps} steps ...')
+    if self.verbose.level>=Verbose.NORMAL:
+
+      self.verbose.line()
+      self.verbose(f'Running simulation with {self.steps} steps ...')
 
     # Reference time
     self.tref = time.time()
@@ -635,19 +627,44 @@ class Engine:
     # --- Main loop --------------------------------------------------------
 
     if self.animation is None:
+
+      from alive_progress import alive_bar
+
       '''
       It is important that steps start at 1, step=0 being the initial state
       '''
-      i = 1
-      while self.steps is None or i<self.steps:
-        self.step(i)
-        i += 1
+      with alive_bar(self.steps) as bar:
+        for step in range(self.steps):
+          if step: self.step(step)
+          bar()
+
+      self.end()
 
     else:
 
       # Use the animation clock
       self.animation.initialize()
       self.window.show()
+
+  def end(self, Nsteps=None):
+    '''
+    Operations to do when the simalutation is over
+    '''
+
+    if Nsteps is None: Nsteps = self.steps
+
+    # End of simulation
+    self.verbose('End of simulation @ {:d} steps ({:.2f} s)'.format(Nsteps, time.time()-self.tref))
+    self.verbose.line()
+
+    # End storage
+    if self.storage is not None:
+      self.storage.db_conn.commit()
+
+    # End display
+    if self.animation is not None:
+      self.animation.is_running = False
+      self.animation.window.close()
 
 ############################################################################
 ############################################################################
@@ -703,12 +720,12 @@ class CUDA:
     m_nCad = m_nCaf*self.engine.groups.N
     m_nI = max(self.engine.groups.l_nI)
 
-    print('gparam', self.engine.groups.param)
-    print('m_nR', m_nR)
-    print('m_nZ', m_nZ)
-    print('m_nCaf', m_nCaf)
-    print('m_nCad', m_nCad)
-    print('m_nI', m_nI)
+    # print('gparam', self.engine.groups.param)
+    # print('m_nR', m_nR)
+    # print('m_nZ', m_nZ)
+    # print('m_nCaf', m_nCaf)
+    # print('m_nCad', m_nCad)
+    # print('m_nI', m_nI)
 
     # --------------------------------------------------------------------------
     #   The CUDA kernel

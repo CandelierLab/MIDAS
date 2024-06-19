@@ -62,3 +62,10 @@ class Default(Enum):
   vnoise = 0              # Speed noise
   anoise = 0              # Angular noise
   bnoise = 0              # Angular noise
+
+# === Verbose level ========================================================
+
+class Verbose(IntEnum):
+  NONE = 0
+  NORMAL = 1
+  HIGH = 2

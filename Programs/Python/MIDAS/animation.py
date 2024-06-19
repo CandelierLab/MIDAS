@@ -22,7 +22,7 @@ class Animation2d(Animation_2d):
     super().__init__(self.engine.window,
                      boundaries=[np.array([-1, 1])*self.engine.geom.arena_shape[0]/2,
                                  np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
-                    disp_boundaries=False)
+                     disp_boundaries=False)
 
     # Default display options
     self.options = {}
@@ -37,6 +37,9 @@ class Animation2d(Animation_2d):
 
     # Trajectory trace
     self.trace_duration = None
+
+    # Misc properties
+    self.is_running = True
 
   # ------------------------------------------------------------------------
   #   Initialization
@@ -308,3 +311,12 @@ class Animation2d(Animation_2d):
       # Traces
       # if self.trace_duration is not None:
       #   self.item[f'{i:d}_trace'].points = Ag.trace
+
+  def stop(self):
+    '''
+    Method triggered on animation exit
+    '''
+    
+    # pass
+    if self.is_running:
+      self.engine.end()

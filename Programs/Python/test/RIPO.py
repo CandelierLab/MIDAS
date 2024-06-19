@@ -1,6 +1,6 @@
 import os
+import time
 import numpy as np
-from numba import cuda
 
 from MIDAS.enums import *
 from MIDAS.engine import Engine
@@ -13,14 +13,16 @@ os.system('clear')
 
 # === Engine ===============================================================
 
-# E = Engine()
-E = Engine(arena=Arena.CIRCULAR)
+E = Engine()
+# E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
 E.steps = 100
 
 # Verbose
-# E.verbose = False
+# E.verbose.level = Verbose.HIGH
+
+# E.verbose('outside')
 
 # === Agents ===============================================================
 
@@ -67,7 +69,7 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # === Storage ==============================================================
 
-E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
+# E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
 
 # === Visualization ========================================================
 

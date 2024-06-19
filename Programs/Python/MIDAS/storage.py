@@ -84,7 +84,7 @@ class Storage():
       case Arena.CIRCULAR:
         periodic = [0, 0, 0]
       case Arena.RECTANGULAR:
-        self.periodic = engine.geom.periodic
+        periodic = engine.geom.periodic
 
     self.db_curs.execute(sql_param, ('db_version', self.version))
     self.db_curs.execute(sql_param, ('dimension', self.dimension))

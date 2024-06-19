@@ -24,7 +24,7 @@ R.animation.options['agents']['cmap'] = 'hsv'
 
 # # === Simulation ===========================================================
 
-# R.window.autoplay = False
+R.window.autoplay = False
 # # # E.window.movieFile = movieDir + 'Donut.mp4'
 
 R.run()
