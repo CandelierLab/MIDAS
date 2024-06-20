@@ -131,7 +131,7 @@ class Agents:
     self.vel = np.empty((0, dimension))
 
     # Agent parameters
-    self.param = np.empty((0, 2*dimension+2))
+    self.param = np.empty((0, 2*dimension+3))
 
     # Groups
     self.group = np.empty(0)
@@ -172,31 +172,7 @@ class Groups:
   # ------------------------------------------------------------------------
 
   def param_RIPO(self, **kwargs):
-    '''
-    Defines the parameters for a group of RIPO agents
-
-    Update:
-      - l_nR
-      - l_nZ
-      - l_nCaf
-      - l_nI
-      - param
-        ├── atype           (1)
-        ├── nR              (1)
-        ├── nSa             (1, if dim>1) 
-        ├── nSb             (1, if dim>2)
-        ├── rS              (nR-1)
-        ├── rmax            (1)
-        ├── nIs             (1)
-        ├── nOut            (1)
-        ├──── Perception    (1)   ┐
-        ├──── Normalization (1)   │
-        ├──── weights       (var) │ As many as input
-        ├──── ...                 ┘
-        ├──── Output      (var) ┐
-        ├──── ...               ┘ As many as output
-    '''
-
+   
     # --- Zones grid dimensions --------------------------------------------
 
     # --- Number of radii
@@ -326,9 +302,6 @@ class Engine:
     # Total number of steps
     self.steps = None
 
-    # Current step
-    self.current_step = 0
-
     # Computation time reference
     self.tref = None
 
@@ -392,6 +365,10 @@ class Engine:
     vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value
     vlim[:,1] = kwargs['vmax'] if 'vmax' in kwargs else V
 
+    # --- Visibility limit
+
+    rmax = np.full((N,1), kwargs['rmax'] if 'rmax' in kwargs else -1)
+
     # --- Reorientation limits
 
     damax = np.zeros((N,self.geom.dimension-1), dtype=np.float32)
@@ -411,8 +388,7 @@ class Engine:
     if self.geom.dimension>2:
       noise[:,2] = kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value
 
-    aparam = np.concatenate((group, vlim, damax, noise), axis=1)
-
+    aparam = np.concatenate((group, vlim, rmax, damax, noise), axis=1)
     self.agents.param = np.concatenate((self.agents.param, aparam), axis=0)
 
     # --- Group definition -------------------------------------------------
@@ -477,9 +453,6 @@ class Engine:
   # ------------------------------------------------------------------------
 
   def step(self, i):
-
-    # Current step
-    self.current_step = i
 
     # Double-buffer computation trick
     if i % 2:
@@ -880,27 +853,30 @@ class CUDA:
             periodic_Z = geom[6]
 
         # --- Agent parameters -------------------------------------------------
-        '''
         
-        '''
-
         # Velocity limits
         vmin = aparam[i,1]
         vmax = aparam[i,2]
 
+        # Visibility limit
+        rmax = aparam[i,3]
+
         match dim:
 
-          case 2:
-            damax = aparam[i,3]
+          case 1:
             vnoise = aparam[i,4]
-            anoise = aparam[i,5]
 
-          case 3:
-            damax = aparam[i,3]
-            dbmax = aparam[i,4]
+          case 2:
+            damax = aparam[i,4]
             vnoise = aparam[i,5]
             anoise = aparam[i,6]
-            bnoise = aparam[i,7]
+
+          case 3:
+            damax = aparam[i,4]
+            dbmax = aparam[i,5]
+            vnoise = aparam[i,6]
+            anoise = aparam[i,7]
+            bnoise = aparam[i,8]
 
         # === Computation ======================================================
 
@@ -919,8 +895,6 @@ class CUDA:
           if j==i: continue
 
           # Distance and relative orientation
-          rmax = 0.1
-
           match dim:
             case 1: pass
             case 2:
