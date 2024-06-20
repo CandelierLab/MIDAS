@@ -324,7 +324,10 @@ class Engine:
     # --- Time
 
     # Total number of steps
-    self.steps = 1
+    self.steps = None
+
+    # Current step
+    self.current_step = 0
 
     # Computation time reference
     self.tref = None
@@ -475,7 +478,8 @@ class Engine:
 
   def step(self, i):
 
-    # print('--- step', i)
+    # Current step
+    self.current_step = i
 
     # Double-buffer computation trick
     if i % 2:
@@ -643,15 +647,12 @@ class Engine:
       self.animation.initialize()
       self.window.show()
 
-  def end(self, Nsteps=None):
+  def end(self):
     '''
     Operations to do when the simalutation is over
     '''
-
-    if Nsteps is None: Nsteps = self.steps
-
     # End of simulation
-    self.verbose('End of simulation @ {:d} steps ({:.2f} s)'.format(Nsteps, time.time()-self.tref))
+    self.verbose('End of simulation @ {:d} steps ({:.2f} s)'.format(self.window.step, time.time()-self.tref))
     self.verbose.line()
 
     # End storage
@@ -918,6 +919,8 @@ class CUDA:
           if j==i: continue
 
           # Distance and relative orientation
+          rmax = 0.1
+
           match dim:
             case 1: pass
             case 2:
@@ -926,228 +929,231 @@ class CUDA:
 
         # --- RIPO agents ------------------------------------------------------
 
-        if atype==Agent.RIPO.value:
+        # if atype==Agent.RIPO.value:
 
-          # Number of groups
-          nG = gparam.shape[0]
+        #   # Number of groups
+        #   nG = gparam.shape[0]
 
-          # === Deserialization of the RIPO parameters ===
+        #   # === Deserialization of the RIPO parameters ===
           
 
-          # --- Radial limits
+        #   # --- Radial limits
 
-          # Number of zones per slice
-          nR = int(gparam[gid, 1])
+        #   # Number of zones per slice
+        #   nR = int(gparam[gid, 1])
 
-          # --- Angular slices
+        #   # --- Angular slices
 
-          nSa = int(gparam[gid, 2]) if dim>1 else 1
-          nSb = int(gparam[gid, 3]) if dim>2 else 1
+        #   nSa = int(gparam[gid, 2]) if dim>1 else 1
+        #   nSb = int(gparam[gid, 3]) if dim>2 else 1
 
-          # --- Zones radii
+        #   # --- Zones radii
 
-          rS = cuda.local.array(m_nR, nb.float32)
-          for ri in range(nR-1):
-            rS[ri] = gparam[gid, dim+ri+1]
+        #   rS = cuda.local.array(m_nR, nb.float32)
+        #   for ri in range(nR-1):
+        #     rS[ri] = gparam[gid, dim+ri+1]
 
-          # Maximal radius
-          rmax = gparam[gid, nR + dim] if gparam[gid, nR + dim]>0 else None
+        #   # Maximal radius
+        #   rmax = gparam[gid, nR + dim] if gparam[gid, nR + dim]>0 else None
 
-          # --- Inputs / outputs
+        #   # --- Inputs / outputs
 
-          # Number of input sets
-          nIs = int(gparam[gid, nR + dim + 1])
+        #   # Number of input sets
+        #   nIs = int(gparam[gid, nR + dim + 1])
 
-          # Number of outputs
-          nOut = int(gparam[gid, nR + dim + 2])
+        #   # Number of outputs
+        #   nOut = int(gparam[gid, nR + dim + 2])
 
-          # Input index reference
-          kIref = nR + dim + 3
+        #   # Input index reference
+        #   kIref = nR + dim + 3
 
-          # Number of coefficients per input type
-          nc_AFI = nOut*nR*nSa*nSb
-          nc_ADI = nOut*nG*nR*nSa*nSb
+        #   # Number of coefficients per input type
+        #   nc_AFI = nOut*nR*nSa*nSb
+        #   nc_ADI = nOut*nG*nR*nSa*nSb
 
-          # --- Weights
+        #   # --- Weights
 
-          weights = cuda.local.array(m_nI, nb.float32)
+        #   weights = cuda.local.array(m_nI, nb.float32)
                 
-          # Default inputs
-          i_pres = None
-          i_ornt = None
-          i_orntC = None
+        #   # Default inputs
+        #   i_pres = None
+        #   i_ornt = None
+        #   i_orntC = None
 
-          # Default mode
-          bADInput = False
+        #   # Default mode
+        #   bADInput = False
 
-          # Scan inputs
-          k = kIref
-          nIn = 0
-          for iS in range(nIs):
+        #   # Scan inputs
+        #   k = kIref
+        #   nIn = 0
+        #   for iS in range(nIs):
 
-            match gparam[gid, k]:                  
+        #     match gparam[gid, k]:                  
 
-              case Perception.PRESENCE.value:
-                bADInput = True
-                i_pres = cuda.local.array(m_nCad, dtype=nb.float32)
+        #       case Perception.PRESENCE.value:
+        #         bADInput = True
+        #         i_pres = cuda.local.array(m_nCad, dtype=nb.float32)
 
-                # Store weights
-                for ci in range(nc_ADI):
-                  weights[nIn] = gparam[gid, k + 2 + ci]
-                  nIn += 1
+        #         # Store weights
+        #         for ci in range(nc_ADI):
+        #           weights[nIn] = gparam[gid, k + 2 + ci]
+        #           nIn += 1
 
-                # Update input index
-                k += nc_ADI + 2
+        #         # Update input index
+        #         k += nc_ADI + 2
 
-              case Perception.ORIENTATION.value:
-                bADInput = True
-                i_ornt = cuda.local.array(m_nCad, dtype=nb.float32)
-                i_orntC = cuda.local.array(m_nCad, dtype=nb.complex64)
+        #       case Perception.ORIENTATION.value:
+        #         bADInput = True
+        #         i_ornt = cuda.local.array(m_nCad, dtype=nb.float32)
+        #         i_orntC = cuda.local.array(m_nCad, dtype=nb.complex64)
 
-                # Store weights
-                for ci in range(nc_ADI):
-                  weights[nIn] = gparam[gid, k + 2 + ci]
-                  nIn += 1
+        #         # Store weights
+        #         for ci in range(nc_ADI):
+        #           weights[nIn] = gparam[gid, k + 2 + ci]
+        #           nIn += 1
 
-                # Update input index
-                k += nc_ADI + 2
+        #         # Update input index
+        #         k += nc_ADI + 2
 
-          # --- Outputs
+        #   # --- Outputs
 
-          # Output index reference
-          kOref = k
+        #   # Output index reference
+        #   kOref = k
 
-          Out_da = -1
-          Out_dv = -1
+        #   Out_da = -1
+        #   Out_dv = -1
 
-          for io in range(nOut):
+        #   for io in range(nOut):
 
-            match gparam[gid, kOref+io*2]:
+        #     match gparam[gid, kOref+io*2]:
 
-              case Output.REORIENTATION.value:
-                Out_da = gparam[gid, kOref+io*2+1]
+        #       case Output.REORIENTATION.value:
+        #         Out_da = gparam[gid, kOref+io*2+1]
 
-              case Output.SPEED_MODULATION.value:
-                Out_dv = gparam[gid, kOref+io*2+1]
+        #       case Output.SPEED_MODULATION.value:
+        #         Out_dv = gparam[gid, kOref+io*2+1]
 
-          # === Agent-free perception ======================================
+        #   # === Agent-free perception ======================================
 
-          # TO DO
+        #   # TO DO
 
-          # === Agent-dependent perception =================================
+        #   # === Agent-dependent perception =================================
 
-          if bADInput:
+        #   if bADInput:
 
-            for j in range(N):
+        #     for j in range(N):
 
-              # Skip self-perception
-              if i==j: continue
+        #       # Skip self-perception
+        #       if i==j: continue
 
-              # Distance and relative orientation
-              z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+        #       # Distance and relative orientation
+        #       z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
 
-              # Skip agents out of reach (further than rmax)
-              if not status: continue
+        #       # Skip agents out of reach (further than rmax)
+        #       if not status: continue
 
-              # --- Index in the grid
+        #       # --- Index in the grid
 
-              # Radial index
-              ri = 0
-              for k in range(nR):
-                ri = k
-                if abs(z)<rS[k]: break
+        #       # Radial index
+        #       ri = 0
+        #       for k in range(nR):
+        #         ri = k
+        #         if abs(z)<rS[k]: break
                 
-              ai = int((cmath.phase(z) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
-              bi = 0 # if dim>2 else 0  # TODO: 3D
+        #       ai = int((cmath.phase(z) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
+        #       bi = 0 # if dim>2 else 0  # TODO: 3D
                                 
-              match dim:
-                case 1: ig = ri
-                case 2: ig = ri*nSa + ai
-                case 3: ig = (ri*nSa + ai)*nSb + bi
+        #       match dim:
+        #         case 1: ig = ri
+        #         case 2: ig = ri*nSa + ai
+        #         case 3: ig = (ri*nSa + ai)*nSb + bi
 
-              # --- Inputs
+        #       # --- Inputs
 
-              if i_pres is not None:
-                i_pres[ig] += 1
+        #       if i_pres is not None:
+        #         i_pres[ig] += 1
 
-              if i_ornt is not None:
-                # TODO: Implement other dimensions
-                match dim:
-                  case 1: pass
-                  case 2:
-                    i_orntC[ig] += cmath.rect(1., alpha)
-                  case 3: pass
+        #       if i_ornt is not None:
+        #         # TODO: Implement other dimensions
+        #         match dim:
+        #           case 1: pass
+        #           case 2:
+        #             i_orntC[ig] += cmath.rect(1., alpha)
+        #           case 3: pass
 
-          # Orientation
-          if i_ornt is not None:
-            for zi in range(nc_ADI):
-              i_ornt[zi] = cmath.phase(i_orntC[zi])
+        #   # Orientation
+        #   if i_ornt is not None:
+        #     for zi in range(nc_ADI):
+        #       i_ornt[zi] = cmath.phase(i_orntC[zi])
 
-          # === Inputs and normalizaton ====================================
+        #   # === Inputs and normalizaton ====================================
 
-          # --- Normalization
+        #   # --- Normalization
         
-          # Weighted sum
-          WS = 0
+        #   # Weighted sum
+        #   WS = 0
           
-          k = kIref
-          for iS in range(nIs):
+        #   k = kIref
+        #   for iS in range(nIs):
 
-            match gparam[gid, k]:                  
+        #     match gparam[gid, k]:                  
 
-              case Perception.PRESENCE.value:
+        #       case Perception.PRESENCE.value:
 
-                match gparam[gid, k+1]:
+        #         match gparam[gid, k+1]:
 
-                  case Normalization.NONE.value:
+        #           case Normalization.NONE.value:
 
-                    for zi in range(nc_ADI):
-                      WS += i_pres[zi]*weights[zi]
+        #             for zi in range(nc_ADI):
+        #               WS += i_pres[zi]*weights[zi]
 
-                  case Normalization.SAME_RADIUS.value: pass
-                  case Normalization.SAME_SLICE.value: pass
-                  case Normalization.ALL.value: pass
+        #           case Normalization.SAME_RADIUS.value: pass
+        #           case Normalization.SAME_SLICE.value: pass
+        #           case Normalization.ALL.value: pass
 
-                # Update k
-                k += nc_ADI + 2
+        #         # Update k
+        #         k += nc_ADI + 2
 
-              case Perception.ORIENTATION.value:
+        #       case Perception.ORIENTATION.value:
                 
-                match gparam[gid, k+1]:
+        #         match gparam[gid, k+1]:
 
-                  case Normalization.NONE.value:
+        #           case Normalization.NONE.value:
 
-                    for zi in range(nc_ADI):
-                      WS += i_ornt[zi]*weights[zi]
+        #             for zi in range(nc_ADI):
+        #               WS += i_ornt[zi]*weights[zi]
 
-                  case Normalization.SAME_RADIUS.value: pass
-                  case Normalization.SAME_SLICE.value: pass
-                  case Normalization.ALL.value: pass
+        #           case Normalization.SAME_RADIUS.value: pass
+        #           case Normalization.SAME_SLICE.value: pass
+        #           case Normalization.ALL.value: pass
 
-                k += nc_ADI + 2
+        #         k += nc_ADI + 2
 
-          # === Processing =================================================
+          # # === Processing =================================================
 
-          # --- Reorientation
+          # # --- Reorientation
 
-          match Out_da:
+          # match Out_da:
 
-            case Activation.ANGLE.value:
-              da = damax*(4/math.pi*math.atan(math.exp((WS)/2))-1)
+          #   case Activation.ANGLE.value:
+          #     da = damax*(4/math.pi*math.atan(math.exp((WS)/2))-1)
 
-            case _:
-              da = 0
+          #   case _:
+          #     da = 0
 
-          # --- Speed modulation
+          # # --- Speed modulation
           
-          match Out_dv:
+          # match Out_dv:
 
-            case Activation.SPEED.value:
-              dv = 0
+          #   case Activation.SPEED.value:
+          #     dv = 0
 
-            case _:
-              dv = 0
+          #   case _:
+          #     dv = 0
       
+        da = 0
+        dv = 0
+
         # === Update =======================================================
 
         match dim:
