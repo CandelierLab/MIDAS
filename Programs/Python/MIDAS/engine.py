@@ -544,7 +544,7 @@ class Engine:
     if self.verbose.level>=Verbose.NORMAL:
 
       self.verbose.line()
-      self.verbose(f'Running simulation with {self.steps} steps ...')
+      self.verbose(f'Starting simulation with {self.agents.N} agents over {self.steps} steps')
 
     # Reference time
     self.tref = time.time()
@@ -554,10 +554,6 @@ class Engine:
 
     # --- CUDA preparation -------------------------------------------------
     
-    # Threads and blocks
-    self.cuda.blockDim = 32
-    self.cuda.gridDim = (self.agents.N + (self.cuda.blockDim - 1)) // self.cuda.blockDim
-
     # Random number generator
     self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
 
@@ -677,6 +673,76 @@ class Engine:
 ############################################################################
 ############################################################################
 
+'''
+
+Vocabulary:
+  - A grid is a polar grid, defined for each perception function
+  - A grid is composed of zones
+  - A set of inputs in a griven grid is called a 'perception'
+
+=== PARAMETERS =============================================================
+
+On the cuda side the general model is decomposed in different parameter sets:
+
+          [Agent parameters]  (N rows)
+aparam
+  ├── group           (1)     group index
+  ├── vlim            (2)     speed limits (vmin, vmax)
+  ├── rmax            (1)     maximal distance for visibility
+  ├── damax           (dim-1) reorientation limits (damax, dbmax)
+  └── noise           (dim)   (vnoise, anoise, bnoise)
+
+          [Group parameters]  (nG rows)
+gparam
+  ├── atype           (1)     type of the agents in the group  
+  ├── nP              (1)     number of perceptions
+  ├── nI              (1)     number of inputs (= number of weights)
+  ├── nO              (1)     number of outputs
+  ├── perceptions     (var)   ┐
+  │   ├── p0          (1)     │ as many as perceptions
+  │   └── ...                 ┘
+  ├── outputs         (var)   ┐
+  │   ├── o0          (1)     │ as many as outputs
+  │   └── ...                 ┘
+  └── weights         (var)   ┐
+      ├── w0          (1)     │ as many as weights
+      └── ...                 ┘
+
+      [Perception parameters] (nP rows)
+pparam
+  ├── ptype           (1)     perception type
+  ├── ntype           (1)     normalization type
+  ├── nR              (1)     ┐
+  ├── nSa  [if dim>1] (1)     │ Grid definition
+  ├── nSb  [if dim>2] (1)     │
+  └── rS              (nR-1)  ┘  
+
+          [Output parameters] (nP rows)
+oparam
+  ├── otype           (1)     output type
+  └── ftype           (dim)   activation type
+
+=== DEVICE LOCAL ARRAYS ==================================================
+
+The following local arrays are defined:
+
+* Other agents:
+  - z         (N, nb.complex64)   relative position
+  - alpha     (N, nb.float32)     relative orientation
+  - visible   (N, nb.boolean)     visibility (= is distance below rmax)
+
+* RIPO
+  - rs        (m_nR, nb.float32)  zones radii
+  - input     (m_nI, nb.float32)  inputs
+  - weights   (m_nI, nb.float32)  weights
+
+=== PERCEPTION DEFINITION ==================================================
+
+In the perception file, there should be:
+- a definition for the IntEnum  'Perception', containing PRESENCE and ORIENTATION.
+- a device function managing all the cases.
+'''
+
 class CUDA:
 
   def __init__(self, engine):
@@ -685,8 +751,8 @@ class CUDA:
     self.engine = engine
 
     # Blocks and grid size
-    self.blockDim = None
-    self.gridDim = None
+    self.blockDim = 32
+    self.gridDim = (engine.agents.N + (self.blockDim - 1)) // self.blockDim
 
     # Geometric parameters
     self.geom = None
@@ -712,7 +778,8 @@ class CUDA:
     #   CUDA kernel variables
     # --------------------------------------------------------------------------
 
-    # Expose max sizes as CUDA global variables (for local array dimensions)
+    # CUDA local array dimensions
+    N = self.engine.agents.N
     m_nR = max(self.engine.groups.l_nR)
     m_nCaf = max(self.engine.groups.l_nCaf)
     m_nCad = m_nCaf*self.engine.groups.N
@@ -724,6 +791,13 @@ class CUDA:
     # print('m_nCaf', m_nCaf)
     # print('m_nCad', m_nCad)
     # print('m_nI', m_nI)
+
+    
+    from test_package import test_fun
+    # test = test_fun
+
+    # Z = np.array([test_fun],dtype=object)
+    # test = 18
 
     # --------------------------------------------------------------------------
     #   The CUDA kernel
@@ -739,8 +813,11 @@ class CUDA:
 
       if i<p0.shape[0]:
 
-        # Number of agents and dimension
-        N, dim = p0.shape
+        # if i==0:
+        #   test_fun()
+          
+        # Dimension
+        dim = p0.shape[1]
 
         # Group id
         gid = int(aparam[i, 0])
@@ -803,11 +880,7 @@ class CUDA:
 
         # --- Agent parameters -------------------------------------------------
         '''
-        Agents parameters 
-        ├── group                       (1)
-        ├── vlim: speed limits          (2)
-        ├── damax: reorientation limits (dim-1)
-        ├── noise: speed, alpha, beta   (dim)
+        
         '''
 
         # Velocity limits
@@ -830,9 +903,26 @@ class CUDA:
 
         # === Computation ======================================================
 
-        # Polar coordinates
+        # Agent polar coordinates
         v = v0[i,0]
         a = v0[i,1]
+
+        # Other agents relative coordinates
+        z = cuda.local.array(N, nb.complex64)
+        alpha = cuda.local.array(N, nb.float32)
+        visible = cuda.local.array(N, nb.boolean)
+
+        for j in range(N):
+
+          # Skip self-perception
+          if j==i: continue
+
+          # Distance and relative orientation
+          match dim:
+            case 1: pass
+            case 2:
+              z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+            case 3: pass
 
         # --- RIPO agents ------------------------------------------------------
 
@@ -842,23 +932,7 @@ class CUDA:
           nG = gparam.shape[0]
 
           # === Deserialization of the RIPO parameters ===
-          '''
-          RIPO
-          ├── atype           (1)
-          ├── nR              (1)
-          ├── nSa             (1, if dim>1) 
-          ├── nSb             (1, if dim>2)
-          ├── rS              (nR-1)
-          ├── rmax            (1)
-          ├── nIs             (1)
-          ├── nOut            (1)
-          ├──── Perception    (1)   ┐
-          ├──── Normalization (1)   │
-          ├──── weights       (var) │ As many as input
-          ├──── ...                 ┘
-          ├──── Output      (var) ┐
-          ├──── ...               ┘ As many as output
-          '''
+          
 
           # --- Radial limits
 
@@ -917,7 +991,7 @@ class CUDA:
                 bADInput = True
                 i_pres = cuda.local.array(m_nCad, dtype=nb.float32)
 
-                # Store coefficients
+                # Store weights
                 for ci in range(nc_ADI):
                   weights[nIn] = gparam[gid, k + 2 + ci]
                   nIn += 1
@@ -930,7 +1004,7 @@ class CUDA:
                 i_ornt = cuda.local.array(m_nCad, dtype=nb.float32)
                 i_orntC = cuda.local.array(m_nCad, dtype=nb.complex64)
 
-                # Store coefficients
+                # Store weights
                 for ci in range(nc_ADI):
                   weights[nIn] = gparam[gid, k + 2 + ci]
                   nIn += 1
@@ -998,51 +1072,59 @@ class CUDA:
 
               if i_ornt is not None:
                 # TODO: Implement other dimensions
-                i_orntC[ig] += z
-          
-          # === Inputs and normalizaton ====================================
+                match dim:
+                  case 1: pass
+                  case 2:
+                    i_orntC[ig] += cmath.rect(1., alpha)
+                  case 3: pass
 
           # Orientation
           if i_ornt is not None:
-            for k in range(nc_ADI):
-              i_ornt[i] = cmath.phase(i_orntC[i])
+            for zi in range(nc_ADI):
+              i_ornt[zi] = cmath.phase(i_orntC[zi])
+
+          # === Inputs and normalizaton ====================================
 
           # --- Normalization
         
           # Weighted sum
           WS = 0
           
-          # k = kIref
-          # for iS in range(nIs):
+          k = kIref
+          for iS in range(nIs):
 
-          #   match gparam[gid, k]:                  
+            match gparam[gid, k]:                  
 
-          #     case Perception.PRESENCE.value:
+              case Perception.PRESENCE.value:
 
-          #       match gparam[gid, k+1]:
+                match gparam[gid, k+1]:
 
-          #         case Normalization.NONE.value:
+                  case Normalization.NONE.value:
 
-          #           for ci in range(nc_ADI):
-          #             WS += i_pres[ci]*weights[ci]                    
+                    for zi in range(nc_ADI):
+                      WS += i_pres[zi]*weights[zi]
 
-          #         case Normalization.SAME_RADIUS.value:
-          #           pass
+                  case Normalization.SAME_RADIUS.value: pass
+                  case Normalization.SAME_SLICE.value: pass
+                  case Normalization.ALL.value: pass
 
-          #         case Normalization.SAME_SLICE.value:
-          #           pass
+                # Update k
+                k += nc_ADI + 2
 
-          #         case Normalization.ALL.value:
-          #           pass
+              case Perception.ORIENTATION.value:
+                
+                match gparam[gid, k+1]:
 
-          #       # Update k
-          #       k += nc_ADI + 2
+                  case Normalization.NONE.value:
 
-          #     case Perception.ORIENTATION.value:
-          #       i_orntC[ig] += z
-          #       # TODO
+                    for zi in range(nc_ADI):
+                      WS += i_ornt[zi]*weights[zi]
 
-          #       k += nc_ADI + 2
+                  case Normalization.SAME_RADIUS.value: pass
+                  case Normalization.SAME_SLICE.value: pass
+                  case Normalization.ALL.value: pass
+
+                k += nc_ADI + 2
 
           # === Processing =================================================
 

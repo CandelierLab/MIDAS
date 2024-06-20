@@ -17,7 +17,7 @@ E = Engine()
 # E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
-E.steps = 100
+E.steps = None
 
 # Verbose
 # E.verbose.level = Verbose.HIGH
@@ -42,13 +42,13 @@ nSa = 4
 
 # Coefficients
 inputs = []
-inputs.append({'perception': Perception.PRESENCE, 
-               'normalization': Normalization.NONE,
-               'coefficients': [1, 1, -1, -1]})
-
-# inputs.append({'perception': Perception.ORIENTATION, 
+# inputs.append({'perception': Perception.PRESENCE, 
 #                'normalization': Normalization.NONE,
-#                'coefficients': [1, 1, 1, 1, 0, 0, 0, 0]})
+#                'coefficients': [1, 1, -1, -1]})
+
+inputs.append({'perception': Perception.ORIENTATION, 
+               'normalization': Normalization.NONE,
+               'coefficients': [1, 1, 1, 1, 0, 0, 0, 0]})
 
 # Outputs 
 outputs = {Output.REORIENTATION: Activation.ANGLE}
@@ -59,7 +59,7 @@ IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
 
-# IC = {'position': [[0,0], [0.1,0.3]],
+# IC = {'position': [[0,0], [0.2,0.3]],
 #       'orientation': [1.5, 0],
 #       'speed': 0.015}
 # N = len(IC['position']) 
@@ -90,7 +90,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 
-E.window.autoplay = False
-# # E.window.movieFile = movieDir + 'Donut.mp4'
+# E.window.autoplay = False
+# # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()

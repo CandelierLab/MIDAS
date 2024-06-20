@@ -1,9 +1,10 @@
 Rationalisation:
-- Fix & finish orientation
+- Make default perception file
 - Custom
 - Field
 - Normalisations
 - Multiple output management
+- Look at ufuncs (for speed optimization)
 
 Speed test
 
