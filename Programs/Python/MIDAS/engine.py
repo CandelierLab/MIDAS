@@ -115,7 +115,10 @@ class Agents:
   '''
 
   def __init__(self, dimension):
-  
+
+    # Dimension
+    self.dimension = dimension
+
     # Number of agents
     self.N = 0
 
@@ -130,11 +133,31 @@ class Agents:
     self.pos = np.empty((0, dimension))
     self.vel = np.empty((0, dimension))
 
-    # Agent parameters
-    self.param = np.empty((0, 2*dimension+3))
-
-    # Groups
+    # Group
     self.group = np.empty(0)
+
+    # Limits
+    self.vmin = np.empty(0)
+    self.vmax = np.empty(0)
+    self.rmax = np.empty(0)
+    if self.dimension>1: self.damax = np.empty(0)
+    if self.dimension>2: self.dbmax = np.empty(0)
+
+    # Noise
+    self.vnoise = np.empty(0)
+    if self.dimension>1: self.danoise = np.empty(0)
+    if self.dimension>2: self.dbnoise = np.empty(0)    
+
+  def get_param(self):
+
+    tmp = [self.group, self.vmin, self.vmax, self.rmax]
+    if self.dimension>1: tmp.append(self.damax)
+    if self.dimension>2: tmp.append(self.dbmax)
+    tmp.append(self.vnoise)
+    if self.dimension>1: tmp.append(self.danoise)
+    if self.dimension>2: tmp.append(self.dbnoise)
+
+    return np.column_stack(tmp)
 
 # === GROUPS ===============================================================
 
@@ -155,11 +178,8 @@ class Groups:
     # Group names
     self.names = []
 
-    # Types of the agents in each group
+    # Types of agents
     self.atype = []
-    
-    # Group parameters
-    self.param = np.empty(0, dtype=np.float32)
 
     # Lists for cuda
     self.l_nR = []    # Number of radii
@@ -171,97 +191,150 @@ class Groups:
   #   Parameter serialization
   # ------------------------------------------------------------------------
 
-  def param_RIPO(self, **kwargs):
+  def get_gparam(self, **kwargs):
+    '''
+    RIPO agents parameters
+    '''
    
-    # --- Zones grid dimensions --------------------------------------------
+    param = []
+    for gid, atype in self.atype:
 
-    # --- Number of radii
+      match atype:
 
-    if 'rS' in kwargs:
-      rS = np.sort(kwargs['rS'])
-      nR = rS.size + 1 
-    else:
-      nR = 1
+        case Agent.FIXED:
 
-    param = [Agent.RIPO, nR]
+          # === FIXED AGENTS =================================================
 
-    # --- Angular slices
+          pass
 
-    if self.dimension>1:
-      nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
-      param.append(nSa)
-    else:
-      nSa = 1
+        case Agent.RIPO:
 
-    if self.dimension>2:
-      nSb = kwargs['nSb'] if 'nSb' in kwargs else 4
-      param.append(nSb)
-    else:
-      nSb = 1
+          # === RIPO AGENTS ==================================================
 
-    # --- Zones specifications ---------------------------------------------
-    
-    # Zone radii
-    if nR>1:
-      [param.append(x) for x in rS]
+          # --- Zones grid dimensions --------------------------------------------
 
-    # Maximal radius
-    if 'rmax' in kwargs and kwargs['rmax'] is not None:
-      param.append(kwargs['rmax'])
-    else:
-      param.append(0)
+          # --- Number of radii
 
-    # === Inputs and outputs ===============================================
+          if 'rS' in kwargs:
+            rS = np.sort(kwargs['rS'])
+            nR = rS.size + 1 
+          else:
+            nR = 1
 
-    inputs = kwargs['inputs'] if 'inputs' in kwargs else []
-    outputs = kwargs['outputs'] if 'outputs' in kwargs else {Output.REORIENTATION: Activation.ANGLE}
+          param = [Agent.RIPO, nR]
 
-    # Number of input sets
-    nIn = len(inputs)
-    param.append(nIn)
+          # --- Angular slices
 
-    # Number of outputs
-    nOut = len(outputs)
-    param.append(nOut)
+          if self.dimension>1:
+            nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
+            param.append(nSa)
+          else:
+            nSa = 1
 
-    # Number of inputs (=number of coefficients)
-    nI = 0
+          if self.dimension>2:
+            nSb = kwargs['nSb'] if 'nSb' in kwargs else 4
+            param.append(nSb)
+          else:
+            nSb = 1
 
-    # --- Inputs
+          # --- Zones specifications ---------------------------------------------
+          
+          # Zone radii
+          if nR>1:
+            [param.append(x) for x in rS]
 
-    for I in kwargs['inputs']:
-      param.append(I['perception'])
-      param.append(I['normalization'])
-      [param.append(c) for c in I['coefficients']]
-      nI += np.array(I['coefficients']).size
+          # Maximal radius
+          if 'rmax' in kwargs and kwargs['rmax'] is not None:
+            param.append(kwargs['rmax'])
+          else:
+            param.append(0)
 
-    # --- Outputs
+          # === Inputs and outputs ===============================================
 
-    for k, v in outputs.items():
-      param.append(k)
-      param.append(v)
+          inputs = kwargs['inputs'] if 'inputs' in kwargs else []
+          outputs = kwargs['outputs'] if 'outputs' in kwargs else {Output.REORIENTATION: Activation.ANGLE}
 
-    # --- Type and size handling -------------------------------------------
+          # Number of input sets
+          nIn = len(inputs)
+          param.append(nIn)
 
-    # Convert to numpy
-    param = np.array(param, dtype=np.float32)
+          # Number of outputs
+          nOut = len(outputs)
+          param.append(nOut)
 
-    if self.param.size:
-      if self.param.shape[1]>param.size:
-        param = np.pad(param, (0,self.param.shape[1]-param.size))
-      elif self.param.shape[1]<param.size:
-        self.param = np.pad(self.param, ((0,0),(0,param.size-self.param.shape[1])))
-        
-        self.param = np.concatenate((self.param, param[None,:]), axis=0)
-    else:
-      self.param = param[None,:]
+          # Number of inputs (=number of coefficients)
+          nI = 0
 
-    # --- Update lists -----------------------------------------------------
+          # --- Inputs
 
-    self.l_nR.append(nR)
-    self.l_nZ.append(nR*nSa*nSb)
-    self.l_nCaf.append(nOut*nR*nSa*nSb)
-    self.l_nI.append(nI)
+          for I in kwargs['inputs']:
+            param.append(I['perception'])
+            param.append(I['normalization'])
+            [param.append(c) for c in I['coefficients']]
+            nI += np.array(I['coefficients']).size
+
+          # --- Outputs
+
+          for k, v in outputs.items():
+            param.append(k)
+            param.append(v)
+
+          # --- Type and size handling -------------------------------------------
+
+          # Convert to numpy
+          param = np.array(param, dtype=np.float32)
+
+          # --- Update lists -----------------------------------------------------
+
+          self.l_nR.append(nR)
+          self.l_nZ.append(nR*nSa*nSb)
+          self.l_nCaf.append(nOut*nR*nSa*nSb)
+          self.l_nI.append(nI)
+
+    return param
+
+# === INPUTS ===============================================================
+
+class Input:
+  '''
+  Input
+  '''
+
+  def __init__(self, perception, normalization, coefficients=None, rZones=[], nAngSlices=None):
+
+    self.perception = perception
+    self.normalization = normalization
+    self.coefficients = coefficients
+    self.rZones = rZones if rZones is not None else Default.rZones
+    self.nAngSlices = nAngSlices if nAngSlices is not None else Default.nAngSlices
+
+  def get_iparam(self, **kwargs):
+    '''
+    Input parameters
+    '''
+   
+    param = []
+    return param
+
+# === OUPUTS ===============================================================
+
+class Output:
+  '''
+  Output
+  '''
+
+  def __init__(self, action, activation):
+
+    self.action = action
+    self.activation = activation
+
+  def get_oparam(self, **kwargs):
+    '''
+    Output parameters
+    '''
+   
+    param = []
+    return param
 
 # === ENGINE ===============================================================
 
@@ -286,6 +359,14 @@ class Engine:
     self.geom = Geometry(dimension, **kwargs)
     self.agents = Agents(dimension)
     self.groups = Groups(dimension)
+    self.inputs = []
+    self.outputs = []
+
+    # Parameters
+    self.aparam = np.empty((0, 2*dimension+3))
+    self.gparam = np.empty(0, dtype=np.float32)
+    self.iparam = np.empty(0, dtype=np.float32)
+    self.oparam = np.empty(0, dtype=np.float32)
     
     # Storage
     self.storage = None
@@ -310,9 +391,24 @@ class Engine:
     self.verbose = MIDAS.verbose.cli_Reporter()
     self.verbose.level = Verbose.NORMAL
 
+# ------------------------------------------------------------------------
+  #   Additions
   # ------------------------------------------------------------------------
-  #   Add group
-  # ------------------------------------------------------------------------
+
+  def add_input(self, perception, normalization, coefficients):
+
+    self.inputs.append(Input(perception=perception, 
+                             normalization=normalization, 
+                             coefficients=coefficients))
+
+    return len(self.inputs)-1
+
+  def add_output(self, action, activation):
+
+    self.outputs.append(Output(action=action, 
+                             activation=activation))
+
+    return len(self.outputs)-1
 
   def add_group(self, gtype, N, **kwargs):
 
@@ -346,7 +442,6 @@ class Engine:
       alpha = np.array(initial_condition['orientation'])
     vel = np.column_stack((V, alpha))
     
-
     # --- Agents definition ------------------------------------------------
 
     self.agents.N += N
@@ -354,42 +449,6 @@ class Engine:
     # Position and speed
     self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
     self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
-
-    # --- Other agent parameters ---
-
-    # Group
-    group = np.full((N,1), self.groups.N)
-
-    # Limits
-    vlim = np.zeros((N,2), dtype=np.float32)
-    vlim[:,0] = kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value
-    vlim[:,1] = kwargs['vmax'] if 'vmax' in kwargs else V
-
-    # --- Visibility limit
-
-    rmax = np.full((N,1), kwargs['rmax'] if 'rmax' in kwargs else -1)
-
-    # --- Reorientation limits
-
-    damax = np.zeros((N,self.geom.dimension-1), dtype=np.float32)
-
-    if self.geom.dimension>1:
-        damax[:,0] = kwargs['damax'] if 'damax' in kwargs else Default.damax.value
-
-    if self.geom.dimension>2:
-        damax[:,1] = kwargs['dbmax'] if 'dbmax' in kwargs else Default.damax.value
-
-    # --- Noise
-
-    noise = np.zeros((N,self.geom.dimension), dtype=np.float32)
-    noise[:,0] = kwargs['vnoise'] if 'vnoise' in kwargs else Default.vnoise.value
-    if self.geom.dimension>1:
-      noise[:,1] = kwargs['anoise'] if 'anoise' in kwargs else Default.anoise.value
-    if self.geom.dimension>2:
-      noise[:,2] = kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value
-
-    aparam = np.concatenate((group, vlim, rmax, damax, noise), axis=1)
-    self.agents.param = np.concatenate((self.agents.param, aparam), axis=0)
 
     # --- Group definition -------------------------------------------------
     
@@ -402,17 +461,48 @@ class Engine:
       self.groups.names.append(gname)
       self.groups.atype.append(gtype)
 
-    # Group parameters
-    match gtype:
-      case Agent.RIPO:
-        self.groups.param_RIPO(**kwargs)
-      case _:
-        self.groups.l_nR.append(0)
-        self.groups.l_nZ.append(0)
-        self.groups.l_nI.append(0)
+    def arrify(v):
+      if isinstance(v, list): v = np.array(v)
+      if not isinstance(v, np.ndarray): v = np.full(N, v)
+      return v
 
     # Agents' groups
-    self.agents.group = np.concatenate((self.agents.group, iname*np.ones(N, dtype=int)), axis=0)
+    group = arrify(iname)
+
+    # Speed limits
+    vmin = arrify(kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value)
+    vmax = arrify(kwargs['vmax'] if 'vmax' in kwargs else V)
+    
+    # Visibility limit
+    rmax = arrify(kwargs['rmax'] if 'rmax' in kwargs else Default.rmax.value)
+
+    # Reorientation limits
+    if self.geom.dimension>1: damax = arrify(kwargs['damax'] if 'damax' in kwargs else Default.damax.value)
+    if self.geom.dimension>2: dbmax = arrify(kwargs['dbmax'] if 'dbmax' in kwargs else Default.dbmax.value)
+
+    # Noise
+    if 'noise' in kwargs:
+      vnoise = arrify(kwargs['noise'][0])
+      if self.geom.dimension>1: danoise = arrify(kwargs['noise'][1]) 
+      if self.geom.dimension>2: dbnoise = arrify(kwargs['noise'][2]) 
+    else:
+      vnoise = arrify(kwargs['vnoise'] if 'vnoise' in kwargs else Default.vnoise.value)
+      if self.geom.dimension>1: danoise = arrify(kwargs['danoise'] if 'danoise' in kwargs else Default.danoise.value)
+      if self.geom.dimension>2: dbnoise = arrify(kwargs['dbnoise'] if 'dbnoise' in kwargs else Default.dbnoise.value)
+
+    # --- Concatenations
+
+    self.agents.group = np.concatenate((self.agents.group, group), axis=0)
+    self.agents.vmin = np.concatenate((self.agents.vmin, vmin), axis=0)
+    self.agents.vmax = np.concatenate((self.agents.vmax, vmax), axis=0)
+    self.agents.rmax = np.concatenate((self.agents.rmax, rmax), axis=0)
+    self.agents.vnoise = np.concatenate((self.agents.vnoise, vnoise), axis=0)
+    if self.geom.dimension>1:
+      self.agents.damax = np.concatenate((self.agents.damax, damax), axis=0)
+      self.agents.danoise = np.concatenate((self.agents.danoise, danoise), axis=0)
+    if self.geom.dimension>2:
+      self.agents.dbmax = np.concatenate((self.agents.dbmax, dbmax), axis=0)
+      self.agents.dbnoise = np.concatenate((self.agents.dbnoise, dbnoise), axis=0)
 
   # ------------------------------------------------------------------------
   #   Setups
@@ -449,47 +539,41 @@ class Engine:
     self.storage = Storage(db_file, verbose=self.verbose)
 
   # ------------------------------------------------------------------------
-  #   Step
+  #   Run process
   # ------------------------------------------------------------------------
 
-  def step(self, i):
+  def define_parameters(self):
+    '''
+    Define parameter arrays
+    '''
 
-    # Double-buffer computation trick
-    if i % 2:
-      
-      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
-        self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
-        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
-      
-      cuda.synchronize()
-      
-      self.agents.pos = self.cuda.p1.copy_to_host()
-      self.agents.vel = self.cuda.v1.copy_to_host()
+    aparam = []
+    gparam = []
+    iparam = []
+    oparam = []
 
-    else:
+    # --- Agent parameters -------------------------------------------------  
 
-      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
-        self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
-        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
-      
-      cuda.synchronize()
-      
-      self.agents.pos = self.cuda.p0.copy_to_host()
-      self.agents.vel = self.cuda.v0.copy_to_host()
+    self.aparam = np.concatenate((self.aparam, self.agents.get_param()), axis=0)
+
+    # --- Group parameters ---------------------------------------------
+
+    tmp = self.groups.get_gparam()
     
-    # --- DB Storage
+    print(tmp)
+    
+    # # Aggregation
+    # if self.groups.param.size:
+    #   if self.groups.param.shape[1]>param.size:
+    #     param = np.pad(param, (0,self.groups.param.shape[1]-param.size))
+    #   elif self.groups.param.shape[1]<param.size:
+    #     self.param = np.pad(self.param, ((0,0),(0,param.size-self.groups.param.shape[1])))
+        
+    #     self.groups.param = np.concatenate((self.groups.param, param[None,:]), axis=0)
+    # else:
+    #   self.groups.param = param[None,:]
 
-    if self.storage is not None:
-      self.storage.insert_step(i, self.agents.pos, self.agents.vel)
-
-    # --- End of simulation (animation)
-
-    if self.animation is not None and self.steps is not None and i>=self.steps-1:
-      self.end()
-
-  # ------------------------------------------------------------------------
-  #   Run
-  # ------------------------------------------------------------------------
+    return (aparam, gparam, iparam, oparam)
 
   def run(self):
 
@@ -526,11 +610,15 @@ class Engine:
     # Reference time
     self.tref = time.time()
 
+    # --- Parameters (for CUDA)
+
+    aparam, gparam, iparam, oparam = self.define_parameters()
+
+    # --- CUDA preparation -------------------------------------------------
+
     # GPU arrays
     self.cuda = CUDA(self)
 
-    # --- CUDA preparation -------------------------------------------------
-    
     # Random number generator
     self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
 
@@ -620,6 +708,41 @@ class Engine:
       self.animation.initialize()
       self.window.show()
 
+  def step(self, i):
+
+    # Double-buffer computation trick
+    if i % 2:
+      
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
+        self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
+        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
+      
+      cuda.synchronize()
+      
+      self.agents.pos = self.cuda.p1.copy_to_host()
+      self.agents.vel = self.cuda.v1.copy_to_host()
+
+    else:
+
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
+        self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
+        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
+      
+      cuda.synchronize()
+      
+      self.agents.pos = self.cuda.p0.copy_to_host()
+      self.agents.vel = self.cuda.v0.copy_to_host()
+    
+    # --- DB Storage
+
+    if self.storage is not None:
+      self.storage.insert_step(i, self.agents.pos, self.agents.vel)
+
+    # --- End of simulation (animation)
+
+    if self.animation is not None and self.steps is not None and i>=self.steps-1:
+      self.end()
+
   def end(self):
     '''
     Operations to do when the simalutation is over
@@ -682,8 +805,8 @@ gparam
       ├── w0          (1)     │ as many as weights
       └── ...                 ┘
 
-      [Perception parameters] (nP rows)
-pparam
+[Input/perception parameters] (nP rows)
+iparam
   ├── ptype           (1)     perception type
   ├── ntype           (1)     normalization type
   ├── nR              (1)     ┐

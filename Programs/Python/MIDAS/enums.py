@@ -56,12 +56,20 @@ class Activation(IntEnum):
 # === Default values =======================================================
 
 class Default(Enum):
+
+  # Agent parameters
   vmin = 0.               # Minimal speed
   vmax = 0.01             # Maximal speed
+  rmax = -1               # Maximal radius (negative value means no rmax)
   damax = np.pi/6         # Maximal reorientation
+  dbmax = np.pi/6         # Maximal reorientation
   vnoise = 0              # Speed noise
-  anoise = 0              # Angular noise
-  bnoise = 0              # Angular noise
+  danoise = 0             # Reorientation noise
+  dbnoise = 0              # Reorientation noise
+
+  # Input parameters
+  rZones = []
+  nAngSlices = 4
 
 # === Verbose level ========================================================
 

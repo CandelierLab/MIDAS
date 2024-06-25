@@ -26,50 +26,54 @@ E.steps = None
 
 # === Agents ===============================================================
 
-# --- Blind agents
+# --- Fixed agents ---------------------------------------------------------
 
 # E.add_group(Agent.BLIND, Nagents, name='agents', 
 #             anoise = 0.1,
 #             vnoise = 0.001)
 
-# --- RIPO agents
+# --- RIPO agents ----------------------------------------------------------
 
-# Radii of sectors
-rS = [0.1]
+# Radii of zones
+rZones = [0.1]
 
-# Number of slices
-nSa = 4
+# Number of angular slices
+nAngSlices = 4
 
-# Coefficients
-inputs = []
-# inputs.append({'perception': Perception.PRESENCE, 
-#                'normalization': Normalization.NONE,
-#                'coefficients': [1, 1, -1, -1]})
+#  --- Inputs
+in_presence = E.add_input(perception=Perception.PRESENCE,
+                          normalization = Normalization.NONE,
+                          rZones = rZones,
+                          nAngSlices = nAngSlices,
+                          coefficients = [1, 1, -1, -1])
 
-inputs.append({'perception': Perception.ORIENTATION, 
-               'normalization': Normalization.NONE,
-               'coefficients': [1, 1, 1, 1, 0, 0, 0, 0]})
+# in_orientation = E.add_input({'perception': Perception.ORIENTATION, 
+#              'normalization': Normalization.NONE,
+#              'coefficients': [1, 1, 1, 1, 0, 0, 0, 0]})
 
-# Outputs 
-outputs = {Output.REORIENTATION: Activation.ANGLE}
+# --- Outputs 
+out_da = E.add_output(action = Output.REORIENTATION,
+                      activation = Activation.ANGLE)
 
 # Initial conditions
-N = 100
+N = 5
 IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
 
-# IC = {'position': [[0,0], [0.2,0.3]],
-#       'orientation': [1.5, 0],
-#       'speed': 0.015}
-# N = len(IC['position']) 
+# # IC = {'position': [[0,0], [0.2,0.3]],
+# #       'orientation': [1.5, 0],
+# #       'speed': 0.015}
+# # N = len(IC['position']) 
 
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            rS = rS, 
-            rmax = None,
-            nSa = nSa,
-            inputs=inputs, outputs=outputs)
+            rmax = None,            
+            inputs=[in_presence], outputs=[out_da])
+
+aparam, gparam, iparam, oparam = E.define_parameters()
+
+print(iparam)
 
 # === Storage ==============================================================
 
@@ -77,20 +81,20 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # === Visualization ========================================================
 
-E.setup_animation()
-E.animation.options['agents']['cmap'] = 'hsv'
+# E.setup_animation()
+# E.animation.options['agents']['cmap'] = 'hsv'
 
-# --- Information
+# # --- Information
 
-# E.animation.add_info_weights()
-# E.animation.add_info()
+# # E.animation.add_info_weights()
+# # E.animation.add_info()
 
-# --- Traces
-# E.animation.trace_duration = 10
+# # --- Traces
+# # E.animation.trace_duration = 10
 
-# === Simulation ===========================================================
+# # === Simulation ===========================================================
 
-# E.window.autoplay = False
-# # E.window.movieFile = movieDir + 'test.mp4'
+# # E.window.autoplay = False
+# # # E.window.movieFile = movieDir + 'test.mp4'
 
-E.run()
+# E.run()
