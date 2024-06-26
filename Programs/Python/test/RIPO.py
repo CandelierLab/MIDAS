@@ -3,7 +3,7 @@ import time
 import numpy as np
 
 from MIDAS.enums import *
-from MIDAS.engine import Engine
+from MIDAS.engine import PolarGrid, Engine
 
 os.system('clear')
 
@@ -34,17 +34,13 @@ E.steps = None
 
 # --- RIPO agents ----------------------------------------------------------
 
-# Radii of zones
-rZones = [0.1]
-
-# Number of angular slices
-nAngSlices = 4
+# polar grid
+G = PolarGrid(rZones=[0.1], nAngSlices = 4)
 
 #  --- Inputs
-in_presence = E.add_input(perception=Perception.PRESENCE,
+in_presence = E.add_input(Perception.PRESENCE,
                           normalization = Normalization.NONE,
-                          rZones = rZones,
-                          nAngSlices = nAngSlices,
+                          grid = G,
                           coefficients = [1, 1, -1, -1])
 
 # in_orientation = E.add_input({'perception': Perception.ORIENTATION, 

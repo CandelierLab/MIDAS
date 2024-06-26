@@ -293,6 +293,23 @@ class Groups:
 
     return param
 
+# === GRIDS ===============================================================
+
+class PolarGrid:
+  '''
+  Polar grid
+  '''
+
+  def __init__(self, rZones=Default.rZones, nAngSlices=Default.nAngSlices, rmax=None):
+
+    self.rZ = np.array(rZones)
+    self.rmax = rmax
+
+    self.nAs = nAngSlices
+    self.nRs = rZones.size + 1
+    
+    self.nZ = self.nA*self.nR
+    
 # === INPUTS ===============================================================
 
 class Input:
@@ -300,13 +317,13 @@ class Input:
   Input
   '''
 
-  def __init__(self, perception, normalization, coefficients=None, rZones=[], nAngSlices=None):
+  def __init__(self, perception, **kwargs):
 
     self.perception = perception
-    self.normalization = normalization
-    self.coefficients = coefficients
-    self.rZones = rZones if rZones is not None else Default.rZones
-    self.nAngSlices = nAngSlices if nAngSlices is not None else Default.nAngSlices
+    self.normalization = kwargs['normalization'] if 'normalization' in kwargs else Normalization.NONE
+    # self.rZones = rZones if rZones is not None else Default.rZones
+    # self.nAngSlices = nAngSlices if nAngSlices is not None else Default.nAngSlices
+    # self.coefficients = kwargs['coefficients'] if 'coefficients' in kwargs else None
 
   def get_iparam(self, **kwargs):
     '''
@@ -395,19 +412,14 @@ class Engine:
   #   Additions
   # ------------------------------------------------------------------------
 
-  def add_input(self, perception, normalization, coefficients):
+  def add_input(self, perception, **kwargs):
 
-    self.inputs.append(Input(perception=perception, 
-                             normalization=normalization, 
-                             coefficients=coefficients))
-
+    self.inputs.append(Input(perception=perception, **kwargs))
     return len(self.inputs)-1
 
   def add_output(self, action, activation):
 
-    self.outputs.append(Output(action=action, 
-                             activation=activation))
-
+    self.outputs.append(Output(action=action, **kwargs))
     return len(self.outputs)-1
 
   def add_group(self, gtype, N, **kwargs):
