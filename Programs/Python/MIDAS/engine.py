@@ -106,7 +106,62 @@ class Geometry:
       orientation = 2*np.pi*np.random.rand(n)
 
     return orientation
-    
+
+  def get_param(self):
+
+    param = []
+
+    # --- Parameter serialization ------------------------------------------
+
+    match self.dimension:
+
+      case 1:
+
+        param = np.zeros(3, dtype=np.float32)
+
+        # Arena shape
+        param[0] = self.arena.value
+
+        # Arena size
+        param[1] = self.arena_shape[0]/2
+
+        # Arena periodicity
+        param[2] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
+
+      case 2:
+
+        param = np.zeros(5, dtype=np.float32)
+
+        # Arena shape
+        param[0] = self.arena.value
+
+        # Arena size
+        param[1] = self.arena_shape[0]/2
+        param[2] = self.arena_shape[1]/2
+
+        # Arena periodicity
+        param[3] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
+        param[4] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[1]
+
+      case 3:
+
+        param = np.zeros(7, dtype=np.float32)
+
+        # Arena shape
+        param[0] = self.arena.value
+
+        # Arena size
+        param[1] = self.arena_shape[0]/2
+        param[2] = self.arena_shape[1]/2
+        param[3] = self.arena_shape[2]/2
+
+        # Arena periodicity
+        param[4] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
+        param[5] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[1]
+        param[6] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[2]
+
+    return param
+
 # === AGENTS ===============================================================
 
 class Agents:
@@ -181,23 +236,25 @@ class Groups:
     # Types of agents
     self.atype = []
 
-    # Lists for cuda
-    self.l_nR = []    # Number of radii
-    self.l_nZ = []    # Number of zones
-    self.l_nCaf = []  # Number of coefficients for a agent-free input set
-    self.l_nI = []    # Number of inputs
+    # I/O
+    self.inputs = []
+    self.outputs = []
 
   # ------------------------------------------------------------------------
   #   Parameter serialization
   # ------------------------------------------------------------------------
 
-  def get_gparam(self, **kwargs):
+  def get_param(self, inputs):
     '''
-    RIPO agents parameters
+    Groups parameters
     '''
    
-    param = []
-    for gid, atype in self.atype:
+    l_gparam = []
+
+    for gid, atype in enumerate(self.atype):
+
+      # Przpare row
+      row = [atype.value]
 
       match atype:
 
@@ -209,89 +266,21 @@ class Groups:
 
         case Agent.RIPO:
 
-          # === RIPO AGENTS ==================================================
+          In = self.inputs[gid]
+          Out = self.outputs[gid]
 
-          # --- Zones grid dimensions --------------------------------------------
+          # Numbers
+          row.append(len(In))
+          row.append(np.sum([inputs[i].coefficients.size for i in In]))
+          row.append(len(Out))
 
-          # --- Number of radii
+          # Lists
+          [row.append(x) for x in In]
+          [row.append(x) for x in Out]
 
-          if 'rS' in kwargs:
-            rS = np.sort(kwargs['rS'])
-            nR = rS.size + 1 
-          else:
-            nR = 1
-
-          param = [Agent.RIPO, nR]
-
-          # --- Angular slices
-
-          if self.dimension>1:
-            nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
-            param.append(nSa)
-          else:
-            nSa = 1
-
-          if self.dimension>2:
-            nSb = kwargs['nSb'] if 'nSb' in kwargs else 4
-            param.append(nSb)
-          else:
-            nSb = 1
-
-          # --- Zones specifications ---------------------------------------------
-          
-          # Zone radii
-          if nR>1:
-            [param.append(x) for x in rS]
-
-          # Maximal radius
-          if 'rmax' in kwargs and kwargs['rmax'] is not None:
-            param.append(kwargs['rmax'])
-          else:
-            param.append(0)
-
-          # === Inputs and outputs ===============================================
-
-          inputs = kwargs['inputs'] if 'inputs' in kwargs else []
-          outputs = kwargs['outputs'] if 'outputs' in kwargs else {Output.REORIENTATION: Activation.ANGLE}
-
-          # Number of input sets
-          nIn = len(inputs)
-          param.append(nIn)
-
-          # Number of outputs
-          nOut = len(outputs)
-          param.append(nOut)
-
-          # Number of inputs (=number of coefficients)
-          nI = 0
-
-          # --- Inputs
-
-          for I in kwargs['inputs']:
-            param.append(I['perception'])
-            param.append(I['normalization'])
-            [param.append(c) for c in I['coefficients']]
-            nI += np.array(I['coefficients']).size
-
-          # --- Outputs
-
-          for k, v in outputs.items():
-            param.append(k)
-            param.append(v)
-
-          # --- Type and size handling -------------------------------------------
-
-          # Convert to numpy
-          param = np.array(param, dtype=np.float32)
-
-          # --- Update lists -----------------------------------------------------
-
-          self.l_nR.append(nR)
-          self.l_nZ.append(nR*nSa*nSb)
-          self.l_nCaf.append(nOut*nR*nSa*nSb)
-          self.l_nI.append(nI)
-
-    return param
+      l_gparam.append(np.array(row))
+    
+    return l_gparam
 
 # === GRIDS ===============================================================
 
@@ -300,15 +289,16 @@ class PolarGrid:
   Polar grid
   '''
 
-  def __init__(self, rZones=Default.rZones, nAngSlices=Default.nAngSlices, rmax=None):
+  def __init__(self, rZ=[], rmax=-1, nSa=1, nSb=1):
 
-    self.rZ = np.array(rZones)
+    self.rZ = np.array(rZ)
+    self.nR = self.rZ.size + 1
     self.rmax = rmax
 
-    self.nAs = nAngSlices
-    self.nRs = rZones.size + 1
-    
-    self.nZ = self.nA*self.nR
+    self.nSa = nSa
+    self.nSb = nSb    
+
+    self.nZ = self.nR*self.nSa*self.nSb
     
 # === INPUTS ===============================================================
 
@@ -319,19 +309,36 @@ class Input:
 
   def __init__(self, perception, **kwargs):
 
+    # Perception type
     self.perception = perception
-    self.normalization = kwargs['normalization'] if 'normalization' in kwargs else Normalization.NONE
-    # self.rZones = rZones if rZones is not None else Default.rZones
-    # self.nAngSlices = nAngSlices if nAngSlices is not None else Default.nAngSlices
-    # self.coefficients = kwargs['coefficients'] if 'coefficients' in kwargs else None
 
-  def get_iparam(self, **kwargs):
+    # Normalization
+    self.normalization = kwargs['normalization'] if 'normalization' in kwargs else Normalization.NONE
+
+    # Grid
+    self.grid = kwargs['grid'] if 'grid' in kwargs else None
+    self.coefficients = np.array(kwargs['coefficients']) if 'coefficients' in kwargs else None
+
+  def get_param(self, dimension, nG, **kwargs):
     '''
-    Input parameters
+    Perception parameters
     '''
    
-    param = []
-    return param
+    # Initialization
+    param = [self.perception.value, self.normalization.value]
+
+    # Grid parameters
+    param.append(self.grid.nR)
+    param.append(self.grid.rmax)
+    if dimension>1: param.append(self.grid.nSa)
+    if dimension>2: param.append(self.grid.nSb)
+    param.append(self.grid.nZ)
+
+    # Coefficients
+    param.append(self.coefficients.size)
+    [param.append(c) for c in self.coefficients]
+
+    return np.array(param)
 
 # === OUPUTS ===============================================================
 
@@ -340,18 +347,17 @@ class Output:
   Output
   '''
 
-  def __init__(self, action, activation):
+  def __init__(self, action, **kwargs):
 
     self.action = action
-    self.activation = activation
+    self.activation = kwargs['activation'] if 'activation' in kwargs else Activation.IDENTITY
 
-  def get_oparam(self, **kwargs):
+  def get_param(self, **kwargs):
     '''
     Output parameters
     '''
    
-    param = []
-    return param
+    return [self.action.value, self.activation.value]
 
 # === ENGINE ===============================================================
 
@@ -380,10 +386,11 @@ class Engine:
     self.outputs = []
 
     # Parameters
-    self.aparam = np.empty((0, 2*dimension+3))
-    self.gparam = np.empty(0, dtype=np.float32)
-    self.iparam = np.empty(0, dtype=np.float32)
-    self.oparam = np.empty(0, dtype=np.float32)
+    self.param_geometry = None
+    self.param_agents = None
+    self.param_perceptions = None
+    self.param_outputs = None
+    self.param_groups = None
     
     # Storage
     self.storage = None
@@ -417,9 +424,9 @@ class Engine:
     self.inputs.append(Input(perception=perception, **kwargs))
     return len(self.inputs)-1
 
-  def add_output(self, action, activation):
+  def add_output(self, action, **kwargs):
 
-    self.outputs.append(Output(action=action, **kwargs))
+    self.outputs.append(Output(action, **kwargs))
     return len(self.outputs)-1
 
   def add_group(self, gtype, N, **kwargs):
@@ -462,7 +469,7 @@ class Engine:
     self.agents.pos = np.concatenate((self.agents.pos, pos), axis=0)
     self.agents.vel = np.concatenate((self.agents.vel, vel), axis=0)
 
-    # --- Group definition -------------------------------------------------
+    # --- Groups definition ------------------------------------------------
     
     # Groups
     if gname in self.groups.names:
@@ -472,6 +479,8 @@ class Engine:
       self.groups.N += 1
       self.groups.names.append(gname)
       self.groups.atype.append(gtype)
+
+    # --- Agents specifications --------------------------------------------
 
     def arrify(v):
       if isinstance(v, list): v = np.array(v)
@@ -516,6 +525,11 @@ class Engine:
       self.agents.dbmax = np.concatenate((self.agents.dbmax, dbmax), axis=0)
       self.agents.dbnoise = np.concatenate((self.agents.dbnoise, dbnoise), axis=0)
 
+    # --- Groups specifications --------------------------------------------
+
+    self.groups.inputs.append(kwargs['inputs'] if 'inputs' in kwargs else [])
+    self.groups.outputs.append(kwargs['outputs'] if 'outputs' in kwargs else [])
+
   # ------------------------------------------------------------------------
   #   Setups
   # ------------------------------------------------------------------------
@@ -559,33 +573,44 @@ class Engine:
     Define parameter arrays
     '''
 
-    aparam = []
-    gparam = []
-    iparam = []
-    oparam = []
+    # --- Geometry ---------------------------------------------------------
+
+    self.param_geometry = self.geom.get_param()
 
     # --- Agent parameters -------------------------------------------------  
 
-    self.aparam = np.concatenate((self.aparam, self.agents.get_param()), axis=0)
+    self.param_agents = self.agents.get_param()
 
-    # --- Group parameters ---------------------------------------------
+    # --- Input parameters -------------------------------------------------
 
-    tmp = self.groups.get_gparam()
+    l_pparam = [I.get_param(self.geom.dimension, self.groups.N) for I in self.inputs]
+
+    # Adjust columns size
+    ncol = max([row.size for row in l_pparam])
+    for i, row in enumerate(l_pparam):
+      l_pparam[i] = np.pad(row, (0, ncol-row.size))
+
+    # Concatenate
+    self.param_perceptions = np.row_stack(l_pparam) 
+
+    # --- Output parameters ------------------------------------------------
+
+    l_oparam = [Out.get_param() for Out in self.outputs]
+
+    # Concatenate
+    self.param_outputs = np.row_stack(l_oparam) 
+
+    # --- Group parameters -------------------------------------------------
+
+    l_gparam = self.groups.get_param(self.inputs)
     
-    print(tmp)
-    
-    # # Aggregation
-    # if self.groups.param.size:
-    #   if self.groups.param.shape[1]>param.size:
-    #     param = np.pad(param, (0,self.groups.param.shape[1]-param.size))
-    #   elif self.groups.param.shape[1]<param.size:
-    #     self.param = np.pad(self.param, ((0,0),(0,param.size-self.groups.param.shape[1])))
-        
-    #     self.groups.param = np.concatenate((self.groups.param, param[None,:]), axis=0)
-    # else:
-    #   self.groups.param = param[None,:]
+    # Adjust columns size
+    ncol = max([row.size for row in l_gparam])
+    for i, row in enumerate(l_gparam):
+      l_gparam[i] = np.pad(row, (0, ncol-row.size))
 
-    return (aparam, gparam, iparam, oparam)
+    # Concatenate
+    self.param_groups = np.row_stack(l_gparam)
 
   def run(self):
 
@@ -622,78 +647,28 @@ class Engine:
     # Reference time
     self.tref = time.time()
 
-    # --- Parameters (for CUDA)
-
-    aparam, gparam, iparam, oparam = self.define_parameters()
-
     # --- CUDA preparation -------------------------------------------------
 
-    # GPU arrays
+    # Define parameters (for CUDA)
+    self.define_parameters()
+
+    # CUDA object
     self.cuda = CUDA(self)
 
-    # Random number generator
-    self.cuda.rng = create_xoroshiro128p_states(self.cuda.blockDim*self.cuda.gridDim, seed=0)
+    # --- Send arrays to device
 
-    # Send arrays to device
-    self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
-    self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
-    self.cuda.aparam = cuda.to_device(self.agents.param.astype(np.float32))
-    self.cuda.gparam = cuda.to_device(self.groups.param.astype(np.float32))
+    # Parameters
+    self.cuda.geometry = cuda.to_device(self.param_geometry.astype(np.float32))
+    self.cuda.agents = cuda.to_device(self.param_agents.astype(np.float32))
+    self.cuda.perceptions = cuda.to_device(self.param_perceptions.astype(np.float32))
+    self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
+    self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
 
     # Double buffers
+    self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
+    self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
     self.cuda.p1 = cuda.device_array((self.agents.N, self.geom.dimension), np.float32)
     self.cuda.v1 = cuda.device_array((self.agents.N, self.geom.dimension), np.float32)
-
-    # --- Parameter serialization ------------------------------------------
-
-    match self.geom.dimension:
-
-      case 1:
-
-        geom = np.zeros(3, dtype=np.float32)
-
-        # Arena shape
-        geom[0] = self.geom.arena.value
-
-        # Arena size
-        geom[1] = self.geom.arena_shape[0]/2
-
-        # Arena periodicity
-        geom[2] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
-
-      case 2:
-
-        geom = np.zeros(5, dtype=np.float32)
-
-        # Arena shape
-        geom[0] = self.geom.arena.value
-
-        # Arena size
-        geom[1] = self.geom.arena_shape[0]/2
-        geom[2] = self.geom.arena_shape[1]/2
-
-        # Arena periodicity
-        geom[3] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
-        geom[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
-
-      case 3:
-
-        geom = np.zeros(7, dtype=np.float32)
-
-        # Arena shape
-        geom[0] = self.geom.arena.value
-
-        # Arena size
-        geom[1] = self.geom.arena_shape[0]/2
-        geom[2] = self.geom.arena_shape[1]/2
-        geom[3] = self.geom.arena_shape[2]/2
-
-        # Arena periodicity
-        geom[4] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[0]
-        geom[5] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[1]
-        geom[6] = self.geom.periodic if self.geom.arena==Arena.CIRCULAR else self.geom.periodic[2]
-
-    self.cuda.geom = cuda.to_device(geom.astype(np.float32))
 
     # --- Main loop --------------------------------------------------------
 
@@ -794,15 +769,34 @@ Vocabulary:
 On the cuda side the general model is decomposed in different parameter sets:
 
           [Agent parameters]  (N rows)
-aparam
+aparam/agents
   ├── group           (1)     group index
   ├── vlim            (2)     speed limits (vmin, vmax)
   ├── rmax            (1)     maximal distance for visibility
   ├── damax           (dim-1) reorientation limits (damax, dbmax)
   └── noise           (dim)   (vnoise, anoise, bnoise)
 
+           [Input parameters] (nP rows)
+pparam/perceptions
+  ├── ptype           (1)     perception type
+  ├── ntype           (1)     normalization type
+  ├── nR              (1)     ┐
+  ├── rmax            (1)     │
+  ├── nSa  [if dim>1] (1)     │ Grid definition
+  ├── nSb  [if dim>2] (1)     │
+  ├── rZ              (nR-1)  ┘
+  ├── nC              (1)     number of coefficients
+  └── weights         (var)   ┐
+      ├── w0          (1)     │ as many as weights
+      └── ...                 ┘
+
+          [Output parameters] (nP rows)
+oparam/actions
+  ├── otype           (1)     output type
+  └── ftype           (1)     activation type
+
           [Group parameters]  (nG rows)
-gparam
+gparam/groups
   ├── atype           (1)     type of the agents in the group  
   ├── nP              (1)     number of perceptions
   ├── nI              (1)     number of inputs (= number of weights)
@@ -810,26 +804,9 @@ gparam
   ├── perceptions     (var)   ┐
   │   ├── p0          (1)     │ as many as perceptions
   │   └── ...                 ┘
-  ├── outputs         (var)   ┐
-  │   ├── o0          (1)     │ as many as outputs
-  │   └── ...                 ┘
-  └── weights         (var)   ┐
-      ├── w0          (1)     │ as many as weights
+  └── outputs         (var)   ┐
+      ├── o0          (1)     │ as many as outputs
       └── ...                 ┘
-
-[Input/perception parameters] (nP rows)
-iparam
-  ├── ptype           (1)     perception type
-  ├── ntype           (1)     normalization type
-  ├── nR              (1)     ┐
-  ├── nSa  [if dim>1] (1)     │ Grid definition
-  ├── nSb  [if dim>2] (1)     │
-  └── rS              (nR-1)  ┘  
-
-          [Output parameters] (nP rows)
-oparam
-  ├── otype           (1)     output type
-  └── ftype           (dim)   activation type
 
 === DEVICE LOCAL ARRAYS ==================================================
 
@@ -863,36 +840,32 @@ class CUDA:
     self.blockDim = 32
     self.gridDim = (engine.agents.N + (self.blockDim - 1)) // self.blockDim
 
-    # Geometric parameters
-    self.geom = None
-
     # Double buffers
     self.p0 = None
     self.v0 = None
     self.p1 = None
     self.v1 = None
 
-    # Other required arrays
-    self.aparam = None
-    self.gparam = None
-    self.input = None
+    # Parameter arrays
+    self.geometry = None
+    self.agents = None
+    self.perceptions = None
+    self.actions = None
+    self.groups = None
     
-    # Radial Input specifics
-    self.rS = None
-
     # Random number generator
-    self.rng = None
+    self.rng = create_xoroshiro128p_states(self.blockDim*self.gridDim, seed=0)
 
     # --------------------------------------------------------------------------
     #   CUDA kernel variables
     # --------------------------------------------------------------------------
 
     # CUDA local array dimensions
-    N = self.engine.agents.N
-    m_nR = max(self.engine.groups.l_nR)
-    m_nCaf = max(self.engine.groups.l_nCaf)
-    m_nCad = m_nCaf*self.engine.groups.N
-    m_nI = max(self.engine.groups.l_nI)
+    # N = self.engine.agents.N
+    # m_nR = max(self.engine.groups.l_nR)
+    # m_nCaf = max(self.engine.groups.l_nCaf)
+    # m_nCad = m_nCaf*self.engine.groups.N
+    # m_nI = max(self.engine.groups.l_nI)
 
     # print('gparam', self.engine.groups.param)
     # print('m_nR', m_nR)
@@ -902,7 +875,7 @@ class CUDA:
     # print('m_nI', m_nI)
 
     
-    from test_package import test_fun
+    # from test_package import test_fun
     # test = test_fun
 
     # Z = np.array([test_fun],dtype=object)

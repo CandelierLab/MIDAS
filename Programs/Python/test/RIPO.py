@@ -35,7 +35,7 @@ E.steps = None
 # --- RIPO agents ----------------------------------------------------------
 
 # polar grid
-G = PolarGrid(rZones=[0.1], nAngSlices = 4)
+G = PolarGrid(rZ=[], nSa = 4)
 
 #  --- Inputs
 in_presence = E.add_input(Perception.PRESENCE,
@@ -43,12 +43,13 @@ in_presence = E.add_input(Perception.PRESENCE,
                           grid = G,
                           coefficients = [1, 1, -1, -1])
 
-# in_orientation = E.add_input({'perception': Perception.ORIENTATION, 
-#              'normalization': Normalization.NONE,
-#              'coefficients': [1, 1, 1, 1, 0, 0, 0, 0]})
+in_orientation = E.add_input(Perception.ORIENTATION, 
+                            normalization = Normalization.NONE,
+                            grid = G,
+                            coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
 
 # --- Outputs 
-out_da = E.add_output(action = Output.REORIENTATION,
+out_da = E.add_output(Action.REORIENTATION,
                       activation = Activation.ANGLE)
 
 # Initial conditions
@@ -65,11 +66,9 @@ IC = {'position': None,
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
             rmax = None,            
-            inputs=[in_presence], outputs=[out_da])
+            inputs=[in_presence, in_orientation], outputs=[out_da])
 
-aparam, gparam, iparam, oparam = E.define_parameters()
-
-print(iparam)
+E.define_parameters()
 
 # === Storage ==============================================================
 
@@ -77,20 +76,20 @@ print(iparam)
 
 # === Visualization ========================================================
 
-# E.setup_animation()
-# E.animation.options['agents']['cmap'] = 'hsv'
+E.setup_animation()
+E.animation.options['agents']['cmap'] = 'hsv'
 
-# # --- Information
+# --- Information
 
-# # E.animation.add_info_weights()
-# # E.animation.add_info()
+# E.animation.add_info_weights()
+# E.animation.add_info()
 
-# # --- Traces
-# # E.animation.trace_duration = 10
+# --- Traces
+# E.animation.trace_duration = 10
 
-# # === Simulation ===========================================================
+# === Simulation ===========================================================
 
-# # E.window.autoplay = False
-# # # E.window.movieFile = movieDir + 'test.mp4'
+E.window.autoplay = False
+# E.window.movieFile = movieDir + 'test.mp4'
 
-# E.run()
+E.run()

@@ -41,17 +41,18 @@ class Normalization(IntEnum):
   SAME_SLICE = 202        # Normalization over sectors within the same angular slice
   ALL = 203               # Normalization over all sectors
 
-# === Outputs ==============================================================
+# === Actions ==============================================================
 
-class Output(IntEnum):
+class Action(IntEnum):
   REORIENTATION = 0       # Reorientation
   SPEED_MODULATION = 1    # Speed modulation
 
 # === Activation fuctions ==================================================
 
 class Activation(IntEnum):
-  ANGLE = 0               # Angular activation
-  SPEED = 1               # Speed activation
+  IDENTITY = 0            # No activation
+  ANGLE = 1               # Angular activation
+  SPEED = 2               # Speed activation
 
 # === Default values =======================================================
 
@@ -66,10 +67,6 @@ class Default(Enum):
   vnoise = 0              # Speed noise
   danoise = 0             # Reorientation noise
   dbnoise = 0              # Reorientation noise
-
-  # Input parameters
-  rZones = []
-  nAngSlices = 4
 
 # === Verbose level ========================================================
 
