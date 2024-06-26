@@ -1060,7 +1060,11 @@ class CUDA:
             # Perception index
             p = groups[gid,k+4]
 
+            dSv, dSa, dSb = perceive(p)
 
+            Sv += dSv
+            Sa += dSa
+            Sb += dSb
 
           # === PROCESSING
           '''
@@ -1456,3 +1460,8 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
     v, a = cmath.polar(complex(vx, vy))
 
   return (px, py, v, a)
+
+@cuda.jit(device=True)
+def perceive(p):
+  
+  return (0,0,0)
