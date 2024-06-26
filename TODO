@@ -1,10 +1,5 @@
-Rationalisation:
-- Make default perception file
-- Custom
-- Field
-- Normalisations
-- Multiple output management
-- Look at ufuncs (for speed optimization)
+Rationalisation
+- Convert coefficients to weights
 
 Speed test
 

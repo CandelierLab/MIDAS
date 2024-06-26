@@ -109,10 +109,6 @@ class Geometry:
 
   def get_param(self):
 
-    param = []
-
-    # --- Parameter serialization ------------------------------------------
-
     match self.dimension:
 
       case 1:
@@ -384,13 +380,6 @@ class Engine:
     self.groups = Groups(dimension)
     self.inputs = []
     self.outputs = []
-
-    # Parameters
-    self.param_geometry = None
-    self.param_agents = None
-    self.param_perceptions = None
-    self.param_outputs = None
-    self.param_groups = None
     
     # Storage
     self.storage = None
@@ -399,9 +388,20 @@ class Engine:
     self.window = None
     self.animation = None
 
-    # GPU
-    self.cuda = None
-    
+    # --- GPU
+
+    self.cuda = None        
+
+    # Parameters for the kernel
+    self.param_geometry = None
+    self.param_agents = None
+    self.param_perceptions = None
+    self.param_outputs = None
+    self.param_groups = None
+
+    # CUDA variables
+    self.agent_drivenity = False
+
     # --- Time
 
     # Total number of steps
@@ -421,7 +421,14 @@ class Engine:
 
   def add_input(self, perception, **kwargs):
 
-    self.inputs.append(Input(perception=perception, **kwargs))
+    self.inputs.append(Input(perception, **kwargs))
+
+    # Check agent-drivenity
+    if ('agent_drivenity' in kwargs and kwargs['agent_drivenity']) \
+      or perception in [Perception.PRESENCE, Perception.ORIENTATION]:
+
+      self.agent_drivenity = True
+
     return len(self.inputs)-1
 
   def add_output(self, action, **kwargs):
@@ -495,7 +502,12 @@ class Engine:
     vmax = arrify(kwargs['vmax'] if 'vmax' in kwargs else V)
     
     # Visibility limit
-    rmax = arrify(kwargs['rmax'] if 'rmax' in kwargs else Default.rmax.value)
+    if 'rmax' in kwargs and kwargs['rmax'] is not None:
+      rmax = arrify(kwargs['rmax'])
+    else:
+
+      l_rmax = [I.grid.rmax if I.grid is not None else -1 for I in self.inputs]
+      rmax = arrify(-1 if any([x==-1 for x in l_rmax]) else max(l_rmax))
 
     # Reorientation limits
     if self.geom.dimension>1: damax = arrify(kwargs['damax'] if 'damax' in kwargs else Default.damax.value)
@@ -700,9 +712,10 @@ class Engine:
     # Double-buffer computation trick
     if i % 2:
       
-      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
-        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
+        self.cuda.rng)
       
       cuda.synchronize()
       
@@ -711,9 +724,10 @@ class Engine:
 
     else:
 
-      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geom,
+      self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
-        self.cuda.aparam, self.cuda.gparam, self.cuda.rng)
+        self.cuda.rng)
       
       cuda.synchronize()
       
@@ -768,8 +782,18 @@ Vocabulary:
 
 On the cuda side the general model is decomposed in different parameter sets:
 
+      [Geometry parameters]   (1 row)
+geometry
+  ├── arena             (1)   arena type
+  ├── X-size            (1)   arena size in the 1st dimension
+  ├── Y-size    [dim>1] (1)   arena size in the 2nd dimension
+  ├── Z-size    [dim>2] (1)   arena size in the 3rd dimension
+  ├── X-period          (1)   arena periodicity in the 1st dimension
+  ├── Y-period  [dim>1] (1)   arena periodicity in the 2nd dimension
+  └── Z-period  [dim>2] (1)   arena periodicity in the 3rd dimension
+
           [Agent parameters]  (N rows)
-aparam/agents
+agents
   ├── group           (1)     group index
   ├── vlim            (2)     speed limits (vmin, vmax)
   ├── rmax            (1)     maximal distance for visibility
@@ -777,7 +801,7 @@ aparam/agents
   └── noise           (dim)   (vnoise, anoise, bnoise)
 
            [Input parameters] (nP rows)
-pparam/perceptions
+perceptions
   ├── ptype           (1)     perception type
   ├── ntype           (1)     normalization type
   ├── nR              (1)     ┐
@@ -791,12 +815,12 @@ pparam/perceptions
       └── ...                 ┘
 
           [Output parameters] (nP rows)
-oparam/actions
+actions
   ├── otype           (1)     output type
   └── ftype           (1)     activation type
 
           [Group parameters]  (nG rows)
-gparam/groups
+groups
   ├── atype           (1)     type of the agents in the group  
   ├── nP              (1)     number of perceptions
   ├── nI              (1)     number of inputs (= number of weights)
@@ -860,8 +884,14 @@ class CUDA:
     #   CUDA kernel variables
     # --------------------------------------------------------------------------
 
+    # Number of agents
+    N = self.engine.agents.N
+
+    # Agent-driven perception boolean
+    agent_drivenity = self.engine.agent_drivenity
+
     # CUDA local array dimensions
-    # N = self.engine.agents.N
+    
     # m_nR = max(self.engine.groups.l_nR)
     # m_nCaf = max(self.engine.groups.l_nCaf)
     # m_nCad = m_nCaf*self.engine.groups.N
@@ -886,7 +916,7 @@ class CUDA:
     # --------------------------------------------------------------------------
     
     @cuda.jit
-    def CUDA_step(geom, p0, v0, p1, v1, aparam, gparam, rng):
+    def CUDA_step(geometry, agents, perceptions, actions, groups, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
       '''
@@ -894,24 +924,23 @@ class CUDA:
       i = cuda.grid(1)
 
       if i<p0.shape[0]:
-
-        # if i==0:
-        #   test_fun()
           
         # Dimension
         dim = p0.shape[1]
 
         # Group id
-        gid = int(aparam[i, 0])
+        gid = int(agents[i, 0])
 
         # Agent type
-        atype = int(gparam[gid, 0])
+        atype = int(groups[gid, 0])
         
         # === Fixed points =====================================================
 
         if atype==Agent.FIXED.value:
           for j in range(dim):
             p1[i,j] = p0[i,j]
+            v1[i,j] = v0[i,j]
+            return
 
         # === Extracting parameters ============================================
 
@@ -926,65 +955,65 @@ class CUDA:
         '''
 
         # Arena        
-        arena = geom[0]
+        arena = geometry[0]
 
         match dim:
 
           case 1:
 
             # Arena shape
-            arena_X = geom[1]
+            arena_X = geometry[1]
 
             # Arena periodicity
-            periodic_X = geom[2]
+            periodic_X = geometry[2]
 
           case 2:
 
             # Arena shape
-            arena_X = geom[1]
-            arena_Y = geom[2]
+            arena_X = geometry[1]
+            arena_Y = geometry[2]
 
             # Arena periodicity
-            periodic_X = geom[3]
-            periodic_Y = geom[4]
+            periodic_X = geometry[3]
+            periodic_Y = geometry[4]
 
           case 3:
 
             # Arena shape
-            arena_X = geom[1]
-            arena_Y = geom[2]
-            arena_Z = geom[3]
+            arena_X = geometry[1]
+            arena_Y = geometry[2]
+            arena_Z = geometry[3]
 
             # Arena periodicity
-            periodic_X = geom[4]
-            periodic_Y = geom[5]
-            periodic_Z = geom[6]
+            periodic_X = geometry[4]
+            periodic_Y = geometry[5]
+            periodic_Z = geometry[6]
 
         # --- Agent parameters -------------------------------------------------
         
         # Velocity limits
-        vmin = aparam[i,1]
-        vmax = aparam[i,2]
+        vmin = agents[i,1]
+        vmax = agents[i,2]
 
         # Visibility limit
-        rmax = aparam[i,3]
+        rmax = agents[i,3]
 
         match dim:
 
           case 1:
-            vnoise = aparam[i,4]
+            vnoise = agents[i,4]
 
           case 2:
-            damax = aparam[i,4]
-            vnoise = aparam[i,5]
-            anoise = aparam[i,6]
+            damax = agents[i,4]
+            vnoise = agents[i,5]
+            anoise = agents[i,6]
 
           case 3:
-            damax = aparam[i,4]
-            dbmax = aparam[i,5]
-            vnoise = aparam[i,6]
-            anoise = aparam[i,7]
-            bnoise = aparam[i,8]
+            damax = agents[i,4]
+            dbmax = agents[i,5]
+            vnoise = agents[i,6]
+            anoise = agents[i,7]
+            bnoise = agents[i,8]
 
         # === Computation ======================================================
 
@@ -993,28 +1022,55 @@ class CUDA:
         a = v0[i,1]
 
         # Other agents relative coordinates
-        z = cuda.local.array(N, nb.complex64)
-        alpha = cuda.local.array(N, nb.float32)
-        visible = cuda.local.array(N, nb.boolean)
+        if agent_drivenity:
 
-        for j in range(N):
+          z = cuda.local.array(N, nb.complex64)
+          alpha = cuda.local.array(N, nb.float32)
+          visible = cuda.local.array(N, nb.boolean)
 
-          # Skip self-perception
-          if j==i: continue
+          for j in range(N):
 
-          # Distance and relative orientation
-          match dim:
-            case 1: pass
-            case 2:
-              z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
-            case 3: pass
+            # Skip self-perception
+            if j==i: continue
+
+            # Distance and relative orientation
+            match dim:
+              case 1: pass
+              case 2:
+                z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+              case 3: pass
 
         # --- RIPO agents ------------------------------------------------------
 
-        # if atype==Agent.RIPO.value:
+        if atype==Agent.RIPO.value:
 
-        #   # Number of groups
-        #   nG = gparam.shape[0]
+          # === INPUTS & WEIGHTS
+          
+          nP = groups[gid,1]
+          nI = groups[gid,2]
+          nO = groups[gid,3]
+
+          # Weighted sums
+          Sv = 0
+          Sa = 0
+          Sb = 0
+
+          for k in range(nI):
+
+            # Perception index
+            p = groups[gid,k+4]
+
+
+
+          # === PROCESSING
+          '''
+          => da, dv
+          '''
+
+
+
+          # Number of groups
+          # nG = gparam.shape[0]
 
         #   # === Deserialization of the RIPO parameters ===
           

@@ -89,7 +89,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 
-E.window.autoplay = False
+# E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()
