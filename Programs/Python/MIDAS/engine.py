@@ -1009,11 +1009,6 @@ class CUDA:
             anoise = agents[i,7]
             bnoise = agents[i,8]
 
-        # --- Group parameters -------------------------------------------------
-
-        # Number of groups
-        nG = groups.shape[0]
-
         # === Computation ======================================================
 
         # Agent polar coordinates
@@ -1046,37 +1041,42 @@ class CUDA:
         if atype==Agent.RIPO.value:
 
           nP = groups[gid,1]
-          nO = groups[gid,2]
-
+          
+          # Shorthand array
+          numbers = cuda.local.array(6, nb.int16)
+          numbers[0] = dim
+          numbers[1] = groups[gid,2]    # nO
+          numbers[2] = groups.shape[0]  # nG
+          
           # Container for the weighted sum
           WS = 0
 
           for pi in range(nP):
 
             # Reset local arrays
-            vIn = cuda.local.array(m_nI, nb.complex64)
+            vIn = cuda.local.array(m_nI, nb.float32)
             vW = cuda.local.array(m_nI, nb.float32)
 
             # Perception index
             p = int(groups[gid, pi+3])
 
-            # Grid properties
-            nR = perceptions[p,2]
-            nSa = perceptions[p,4] if dim>1 else 1 
-            nSb = perceptions[p,5] if dim>2 else 1
-
+            # Grid parameters
+            numbers[3] = perceptions[p,2]                   # nR
+            numbers[4] = perceptions[p,4] if dim>1 else 1   # nSa
+            numbers[5] = perceptions[p,5] if dim>2 else 1   # nSb
+            
             # --- Inputs
 
-            vIn = perceive(vIn, dim, nR, nSb, nSa, p,
+            vIn = perceive(vIn, numbers, p,
                      agents, perceptions,
-                      z, alpha, visible)
+                      z, alpha, visible, m_nI)
             
             # if i==0:
             #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
 
             # --- Normalization
 
-            vIn = normalize(vIn, perceptions[p,1], nG, nR, nSb, nSa)
+            vIn = normalize(vIn, perceptions[p,1], numbers)
 
             # if i==0:
             #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
@@ -1084,11 +1084,11 @@ class CUDA:
 
             # --- Weighted sum
 
-            for k in range(nG*nR*nSb*nSa):
-              WS += vIn[k]*perceptions[p, int(dim + nR + 3 + k)]
+            # for k in range(nG*nR*nSb*nSa):
+            #   WS += vIn[k]*perceptions[p, int(dim + nR + 3 + k)]
 
-            if i==0:
-              print(WS)
+            # if i==0:
+            #   print(WS.real)
       
         da = 0
         dv = 0
@@ -1259,11 +1259,20 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   return (px, py, v, a)
 
 @cuda.jit(device=True)
-def perceive(vIn, dim, nR, nSb, nSa, p, agents, perceptions, z, alpha, visible):
+def perceive(vIn, numbers, p, agents, perceptions, z, alpha, visible, m_nI):
+
+  dim = numbers[0]
+  nG = numbers[2]
+  nR = numbers[3]
+  nSa = numbers[4]
+  nSb = numbers[5]
 
   match perceptions[p,0]:
 
     case Perception.PRESENCE.value | Perception.ORIENTATION.value:
+
+      if perceptions[p,0]==Perception.ORIENTATION.value:
+        Cbuffer = cuda.local.array(m_nI, nb.complex64)
 
       for j in range(agents.shape[0]):
 
@@ -1300,12 +1309,26 @@ def perceive(vIn, dim, nR, nSb, nSa, p, agents, perceptions, z, alpha, visible):
             vIn[ic] += 1
 
           case Perception.ORIENTATION.value:
-            vIn[ic] += cmath.rect(1., alpha[j])
+            Cbuffer[ic] += cmath.rect(1., alpha[j])
+
+      # --- Post-process
+
+      match perceptions[p,0]:
+
+        case Perception.ORIENTATION.value:
+
+          for ic in range(nG*nR*nSb*nSa):
+            vIn[ic] = cmath.phase(Cbuffer[ic])
 
   return vIn
 
 @cuda.jit(device=True)
-def normalize(vIn, ntype, nG, nR, nSb, nSa):
+def normalize(vIn, ntype, numbers):
+
+  nG = numbers[2]
+  nR = numbers[3]
+  nSa = numbers[4]
+  nSb = numbers[5]
 
   match ntype:
 

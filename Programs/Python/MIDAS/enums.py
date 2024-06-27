@@ -20,6 +20,9 @@ class Agent(IntEnum):
 # === Perception functions =================================================
 
 class Perception(IntEnum):
+  '''
+  
+  '''
 
   # Agent-dependent
   PRESENCE = 100          # Presence (count agents)
