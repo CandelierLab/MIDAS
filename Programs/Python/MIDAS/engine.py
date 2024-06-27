@@ -1045,10 +1045,11 @@ class CUDA:
 
         if atype==Agent.RIPO.value:
 
-          # === INPUTS & WEIGHTS
-          
           nP = groups[gid,1]
           nO = groups[gid,2]
+
+          # Container for the weighted sum
+          WS = 0
 
           for pi in range(nP):
 
@@ -1066,7 +1067,7 @@ class CUDA:
 
             # --- Inputs
 
-            vIn = perceive(vIn, dim, nR, nSa, nSb, p,
+            vIn = perceive(vIn, dim, nR, nSb, nSa, p,
                      agents, perceptions,
                       z, alpha, visible)
             
@@ -1075,11 +1076,19 @@ class CUDA:
 
             # --- Normalization
 
-            vIn = normalize(vIn, perceptions[p,1], nG, nR, nSa, nSb)
+            vIn = normalize(vIn, perceptions[p,1], nG, nR, nSb, nSa)
+
+            # if i==0:
+            #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
+              # print(perceptions[p,1])
+
+            # --- Weighted sum
+
+            for k in range(nG*nR*nSb*nSa):
+              WS += vIn[k]*perceptions[p, int(dim + nR + 3 + k)]
 
             if i==0:
-              print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
-              # print(perceptions[p,1])
+              print(WS)
       
         da = 0
         dv = 0
@@ -1250,7 +1259,7 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   return (px, py, v, a)
 
 @cuda.jit(device=True)
-def perceive(vIn, dim, nR, nSa, nSb, p, agents, perceptions, z, alpha, visible):
+def perceive(vIn, dim, nR, nSb, nSa, p, agents, perceptions, z, alpha, visible):
 
   match perceptions[p,0]:
 
@@ -1296,7 +1305,7 @@ def perceive(vIn, dim, nR, nSa, nSb, p, agents, perceptions, z, alpha, visible):
   return vIn
 
 @cuda.jit(device=True)
-def normalize(vIn, ntype, nG, nR, nSa, nSb):
+def normalize(vIn, ntype, nG, nR, nSb, nSa):
 
   match ntype:
 
@@ -1310,12 +1319,12 @@ def normalize(vIn, ntype, nG, nR, nSa, nSb):
 
           # Get sum
           S = 0
-          for k in range(nSa*nSb):
-            S += vIn[int(ig*nR*nSa*nSb + ir*nSa*nSb + k)]
+          for k in range(nSb*nSa):
+            S += vIn[int(ig*nR*nSb*nSa + ir*nSb*nSa + k)]
 
           # Normalization
-          for k in range(nSa*nSb):
-            vIn[int(ig*nR*nSa*nSb + ir*nSa*nSb + k)] /= S
+          for k in range(nSb*nSa):
+            vIn[int(ig*nR*nSb*nSa + ir*nSb*nSa + k)] /= S
 
     case Normalization.SAME_SLICE.value:
       '''
@@ -1323,16 +1332,16 @@ def normalize(vIn, ntype, nG, nR, nSa, nSb):
       '''
       
       for ig in range(nG):
-        for ia in range(nSa*nSb):
+        for ia in range(nSb*nSa):
 
           # Get sum
           S = 0
           for k in range(nR):
-            S += vIn[int(ig*nR*nSa*nSb + k*nSa*nSb + ia)]
+            S += vIn[int(ig*nR*nSb*nSa + k*nSb*nSa + ia)]
 
           # Normalization
           for k in range(nR):
-            vIn[int(ig*nR*nSa*nSb + k*nSa*nSb + ia)] /= S
+            vIn[int(ig*nR*nSb*nSa + k*nSb*nSa + ia)] /= S
 
     case Normalization.SAME_GROUP.value:
       '''
@@ -1343,12 +1352,12 @@ def normalize(vIn, ntype, nG, nR, nSa, nSb):
 
         # Get sum
         S = 0
-        for k in range(nR*nSa*nSb):
-          S += vIn[int(ig*nR*nSa*nSb + k)]
+        for k in range(nR*nSb*nSa):
+          S += vIn[int(ig*nR*nSb*nSa + k)]
 
         # Normalization
-        for k in range(nR*nSa*nSb):
-          vIn[int(ig*nR*nSa*nSb + k)] /= S
+        for k in range(nR*nSb*nSa):
+          vIn[int(ig*nR*nSb*nSa + k)] /= S
       
     case Normalization.ALL.value:
       '''
@@ -1357,11 +1366,11 @@ def normalize(vIn, ntype, nG, nR, nSa, nSb):
 
       # Get sum
       S = 0
-      for k in range(nG*nR*nSa*nSb):
+      for k in range(nG*nR*nSb*nSa):
         S += vIn[k]
 
       # Normalization
-      for k in range(nG*nR*nSa*nSb):
+      for k in range(nG*nR*nSb*nSa):
         vIn[k] /= S
 
   return vIn
