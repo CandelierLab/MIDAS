@@ -777,7 +777,6 @@ class Engine:
 ############################################################################
 
 '''
-
 Vocabulary:
   - A grid is a polar grid, defined for each perception function
   - A grid is composed of zones
@@ -896,6 +895,7 @@ class CUDA:
 
     # CUDA local array dimensions
     m_nI = max([x.coefficients.size for x in self.engine.inputs])
+    m_nO = max([len(x) for x in self.engine.groups.outputs])
    
     # from test_package import test_fun
     # test = test_fun
@@ -1041,15 +1041,17 @@ class CUDA:
           nP = groups[gid,1]
           nO = groups[gid,2]
           nG = groups.shape[0]
-          
+                    
           # Shorthand array
           numbers = cuda.local.array(6, nb.int16)
           numbers[0] = dim
           numbers[1] = nO
           numbers[2] = nG
-          
+
           # Container for the weighted sum
-          WS = 0
+          outBuffer = cuda.local.array(m_nO, nb.float32)
+          
+          # === Perceptions
 
           for pi in range(nP):
 
@@ -1064,6 +1066,9 @@ class CUDA:
             nR = perceptions[p,2]
             nSa = perceptions[p,4] if dim>1 else 1
             nSb = perceptions[p,5] if dim>2 else 1
+
+            # Number of inputs
+            nI = nG*nR*nSb*nSa
 
             numbers[3] = nR
             numbers[4] = nSa
@@ -1086,26 +1091,59 @@ class CUDA:
             #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
               # print(perceptions[p,1])
 
-            # --- Weighted sum
+            # === Outputs
 
-            for k in range(nG*nR*nSb*nSa):
-              WS += vIn[k]*perceptions[p, int(dim + nR + 3 + k)]
+            for oid in range(nO):
 
-            if i==0:
-              print(WS.real)
+              # --- Weighted sum
+
+              for k in range(nI):
+
+                outBuffer[oid] += vIn[k]*perceptions[p, int(dim + nR + 3 + nI*j + k)]
+
+          # === Actions
+
+          for oid in range(nO):
+
+            aid = int(groups[gid, int(nP+2+oid)])
+
+            otype = actions[aid,0]
+            ftype = actions[aid,1]
+
+            # --- Activation
+
+            match ftype:
+
+              case Activation.IDENTITY.value:
+                output = outBuffer[oid]
+
+              case Activation.ANGLE.value:
+
+                output = 4/math.pi*math.atan(math.exp((outBuffer[oid])/2))-1
+                match otype:
+                  case Action.REORIENTATION_TRANSVERSE.value: output *= damax
+                  case Action.REORIENTATION_LONGITUDINAL.value: output *= dbmax
+                  # case Action.REORIENTATION_FRONTAL.value: output *= dcmax
+                    
+              case Activation.SPEED.value:
+                dvmax = 1
+                output = dvmax*2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
+
+            # --- Action (velocity updates)
+
+            match otype:
+
+              case Action.REORIENTATION.value:
+                a += output                
+
+              case Action.SPEED_MODULATION.value:
+                v += output
       
-        da = 0
-        dv = 0
-
         # === Update =======================================================
 
         match dim:
 
           case 2:
-
-            # Update velocity
-            v += dv
-            a += da
 
             # --- Noise ----------------------------------------------------
 
@@ -1401,222 +1439,3 @@ def normalize(vIn, ntype, numbers):
         vIn[k] /= S
 
   return vIn
-
- # === PROCESSING
-
-        #   # === Deserialization of the RIPO parameters ===
-          
-
-        #   # --- Radial limits
-
-        #   # Number of zones per slice
-        #   nR = int(gparam[gid, 1])
-
-        #   # --- Angular slices
-
-        #   nSa = int(gparam[gid, 2]) if dim>1 else 1
-        #   nSb = int(gparam[gid, 3]) if dim>2 else 1
-
-        #   # --- Zones radii
-
-        #   rS = cuda.local.array(m_nR, nb.float32)
-        #   for ri in range(nR-1):
-        #     rS[ri] = gparam[gid, dim+ri+1]
-
-        #   # Maximal radius
-        #   rmax = gparam[gid, nR + dim] if gparam[gid, nR + dim]>0 else None
-
-        #   # --- Inputs / outputs
-
-        #   # Number of input sets
-        #   nIs = int(gparam[gid, nR + dim + 1])
-
-        #   # Number of outputs
-        #   nOut = int(gparam[gid, nR + dim + 2])
-
-        #   # Input index reference
-        #   kIref = nR + dim + 3
-
-        #   # Number of coefficients per input type
-        #   nc_AFI = nOut*nR*nSa*nSb
-        #   nc_ADI = nOut*nG*nR*nSa*nSb
-
-        #   # --- Weights
-
-        #   weights = cuda.local.array(m_nI, nb.float32)
-                
-        #   # Default inputs
-        #   i_pres = None
-        #   i_ornt = None
-        #   i_orntC = None
-
-        #   # Default mode
-        #   bADInput = False
-
-        #   # Scan inputs
-        #   k = kIref
-        #   nIn = 0
-        #   for iS in range(nIs):
-
-        #     match gparam[gid, k]:                  
-
-        #       case Perception.PRESENCE.value:
-        #         bADInput = True
-        #         i_pres = cuda.local.array(m_nCad, dtype=nb.float32)
-
-        #         # Store weights
-        #         for ci in range(nc_ADI):
-        #           weights[nIn] = gparam[gid, k + 2 + ci]
-        #           nIn += 1
-
-        #         # Update input index
-        #         k += nc_ADI + 2
-
-        #       case Perception.ORIENTATION.value:
-        #         bADInput = True
-        #         i_ornt = cuda.local.array(m_nCad, dtype=nb.float32)
-        #         i_orntC = cuda.local.array(m_nCad, dtype=nb.complex64)
-
-        #         # Store weights
-        #         for ci in range(nc_ADI):
-        #           weights[nIn] = gparam[gid, k + 2 + ci]
-        #           nIn += 1
-
-        #         # Update input index
-        #         k += nc_ADI + 2
-
-        #   # --- Outputs
-
-        #   # Output index reference
-        #   kOref = k
-
-        #   Out_da = -1
-        #   Out_dv = -1
-
-        #   for io in range(nOut):
-
-        #     match gparam[gid, kOref+io*2]:
-
-        #       case Output.REORIENTATION.value:
-        #         Out_da = gparam[gid, kOref+io*2+1]
-
-        #       case Output.SPEED_MODULATION.value:
-        #         Out_dv = gparam[gid, kOref+io*2+1]
-
-        #   # === Agent-free perception ======================================
-
-        #   # TO DO
-
-        #   # === Agent-dependent perception =================================
-
-        #   if bADInput:
-
-        #     for j in range(N):
-
-        #       # Skip self-perception
-        #       if i==j: continue
-
-        #       # Distance and relative orientation
-        #       z, alpha, status = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
-
-        #       # Skip agents out of reach (further than rmax)
-        #       if not status: continue
-
-        #       # --- Index in the grid
-
-        #       # Radial index
-        #       ri = 0
-        #       for k in range(nR):
-        #         ri = k
-        #         if abs(z)<rS[k]: break
-                
-        #       ai = int((cmath.phase(z) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
-        #       bi = 0 # if dim>2 else 0  # TODO: 3D
-                                
-        #       match dim:
-        #         case 1: ig = ri
-        #         case 2: ig = ri*nSa + ai
-        #         case 3: ig = (ri*nSa + ai)*nSb + bi
-
-        #       # --- Inputs
-
-        #       if i_pres is not None:
-        #         i_pres[ig] += 1
-
-        #       if i_ornt is not None:
-        #         # TODO: Implement other dimensions
-        #         match dim:
-        #           case 1: pass
-        #           case 2:
-        #             i_orntC[ig] += cmath.rect(1., alpha)
-        #           case 3: pass
-
-        #   # Orientation
-        #   if i_ornt is not None:
-        #     for zi in range(nc_ADI):
-        #       i_ornt[zi] = cmath.phase(i_orntC[zi])
-
-        #   # === Inputs and normalizaton ====================================
-
-        #   # --- Normalization
-        
-        #   # Weighted sum
-        #   WS = 0
-          
-        #   k = kIref
-        #   for iS in range(nIs):
-
-        #     match gparam[gid, k]:                  
-
-        #       case Perception.PRESENCE.value:
-
-        #         match gparam[gid, k+1]:
-
-        #           case Normalization.NONE.value:
-
-        #             for zi in range(nc_ADI):
-        #               WS += i_pres[zi]*weights[zi]
-
-        #           case Normalization.SAME_RADIUS.value: pass
-        #           case Normalization.SAME_SLICE.value: pass
-        #           case Normalization.ALL.value: pass
-
-        #         # Update k
-        #         k += nc_ADI + 2
-
-        #       case Perception.ORIENTATION.value:
-                
-        #         match gparam[gid, k+1]:
-
-        #           case Normalization.NONE.value:
-
-        #             for zi in range(nc_ADI):
-        #               WS += i_ornt[zi]*weights[zi]
-
-        #           case Normalization.SAME_RADIUS.value: pass
-        #           case Normalization.SAME_SLICE.value: pass
-        #           case Normalization.ALL.value: pass
-
-        #         k += nc_ADI + 2
-
-          # # === Processing =================================================
-
-          # # --- Reorientation
-
-          # match Out_da:
-
-          #   case Activation.ANGLE.value:
-          #     da = damax*(4/math.pi*math.atan(math.exp((WS)/2))-1)
-
-          #   case _:
-          #     da = 0
-
-          # # --- Speed modulation
-          
-          # match Out_dv:
-
-          #   case Activation.SPEED.value:
-          #     dv = 0
-
-          #   case _:
-          #     dv = 0

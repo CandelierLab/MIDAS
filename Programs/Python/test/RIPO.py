@@ -35,13 +35,13 @@ E.steps = None
 # --- RIPO agents ----------------------------------------------------------
 
 # polar grid
-G = PolarGrid(rZ=[0.1], nSa = 4)
+G = PolarGrid(rZ=[], nSa = 4)
 
 #  --- Inputs
 in_presence = E.add_input(Perception.PRESENCE,
                           normalization = Normalization.SAME_GROUP,
                           grid = G,
-                          coefficients = [1, 1, 1, 1, 1, 1, 1, 1])
+                          coefficients = [1, 1, -1, -1])
 
 # in_orientation = E.add_input(Perception.ORIENTATION, 
 #                             normalization = Normalization.NONE,
@@ -49,11 +49,15 @@ in_presence = E.add_input(Perception.PRESENCE,
 #                             coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
 
 # --- Outputs 
+
 out_da = E.add_output(Action.REORIENTATION,
                       activation = Activation.ANGLE)
 
+# out_dv = E.add_output(Action.SPEED_MODULATION,
+#                       activation = Activation.SPEED)
+
 # Initial conditions
-N = 5
+N = 100
 IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
@@ -87,7 +91,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 
-E.window.autoplay = False
+# E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()

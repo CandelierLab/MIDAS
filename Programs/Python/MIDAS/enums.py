@@ -48,8 +48,14 @@ class Normalization(IntEnum):
 # === Actions ==============================================================
 
 class Action(IntEnum):
-  REORIENTATION = 0       # Reorientation
-  SPEED_MODULATION = 1    # Speed modulation
+  SPEED_MODULATION = 0            # Speed modulation
+  REORIENTATION = 1               # ┐ Reorientation (transverse - for easy use in 2D)
+  REORIENTATION_TRANSVERSE = 1    # │ Reorientation (transverse plane)
+  REORIENTATION_AXIAL = 1         # ┘ 
+  REORIENTATION_LONGITUDINAL = 2  # ┐ Reorientation (longitudinal plane)
+  REORIENTATION_SAGITTAL = 2      # ┘ 
+  REORIENTATION_FRONTAL = 3       # ┐ Reorientation (frontal plane)
+  REORIENTATION_CORONAL = 3       # ┘
 
 # === Activation fuctions ==================================================
 

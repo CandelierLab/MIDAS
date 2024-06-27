@@ -1,5 +1,7 @@
 Rationalisation
-- Convert coefficients to weights
+- Debug dynamics
+- Rajouter dvmax
+- Convert coefficients to weights: case FB <> LR !!
 
 Speed test
 
