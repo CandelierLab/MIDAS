@@ -331,7 +331,13 @@ class Input:
 
     # Coefficients
     param.append(self.coefficients.size)
-    [param.append(c) for c in self.coefficients]
+
+    match dimension:
+      case 1: pass
+      case 2:
+        for i,c in enumerate(self.coefficients):
+          param.append(c if (i % self.grid.nSa)<self.grid.nSa/2 else -c)
+      case 3: pass
 
     return np.array(param)
 
@@ -890,15 +896,7 @@ class CUDA:
 
     # CUDA local array dimensions
     m_nI = max([x.coefficients.size for x in self.engine.inputs])
-
-    # print('gparam', self.engine.groups.param)
-    # print('m_nR', m_nR)
-    # print('m_nZ', m_nZ)
-    # print('m_nCaf', m_nCaf)
-    # print('m_nCad', m_nCad)
-    # print('m_nI', m_nI)
-
-    
+   
     # from test_package import test_fun
     # test = test_fun
 
@@ -1041,12 +1039,14 @@ class CUDA:
         if atype==Agent.RIPO.value:
 
           nP = groups[gid,1]
+          nO = groups[gid,2]
+          nG = groups.shape[0]
           
           # Shorthand array
           numbers = cuda.local.array(6, nb.int16)
           numbers[0] = dim
-          numbers[1] = groups[gid,2]    # nO
-          numbers[2] = groups.shape[0]  # nG
+          numbers[1] = nO
+          numbers[2] = nG
           
           # Container for the weighted sum
           WS = 0
@@ -1061,9 +1061,13 @@ class CUDA:
             p = int(groups[gid, pi+3])
 
             # Grid parameters
-            numbers[3] = perceptions[p,2]                   # nR
-            numbers[4] = perceptions[p,4] if dim>1 else 1   # nSa
-            numbers[5] = perceptions[p,5] if dim>2 else 1   # nSb
+            nR = perceptions[p,2]
+            nSa = perceptions[p,4] if dim>1 else 1
+            nSb = perceptions[p,5] if dim>2 else 1
+
+            numbers[3] = nR
+            numbers[4] = nSa
+            numbers[5] = nSb
             
             # --- Inputs
 
@@ -1084,11 +1088,11 @@ class CUDA:
 
             # --- Weighted sum
 
-            # for k in range(nG*nR*nSb*nSa):
-            #   WS += vIn[k]*perceptions[p, int(dim + nR + 3 + k)]
+            for k in range(nG*nR*nSb*nSa):
+              WS += vIn[k]*perceptions[p, int(dim + nR + 3 + k)]
 
-            # if i==0:
-            #   print(WS.real)
+            if i==0:
+              print(WS.real)
       
         da = 0
         dv = 0
