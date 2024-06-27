@@ -37,9 +37,10 @@ class Perception(IntEnum):
 
 class Normalization(IntEnum):
   NONE = 200              # No normalization
-  SAME_RADIUS = 201       # Normalization over sectors with the same radius
-  SAME_SLICE = 202        # Normalization over sectors within the same angular slice
-  ALL = 203               # Normalization over all sectors
+  SAME_RADIUS = 201       # Normalization over zones with the same radius
+  SAME_SLICE = 202        # Normalization over zones within the same angular slice
+  SAME_GROUP = 203        # Normalization over all zones among the same group
+  ALL = 204               # Normalization over all zones of all groups
 
 # === Actions ==============================================================
 

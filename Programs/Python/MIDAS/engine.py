@@ -267,7 +267,6 @@ class Groups:
 
           # Numbers
           row.append(len(In))
-          row.append(np.sum([inputs[i].coefficients.size for i in In]))
           row.append(len(Out))
 
           # Lists
@@ -804,12 +803,12 @@ agents
 perceptions
   ├── ptype           (1)     perception type
   ├── ntype           (1)     normalization type
-  ├── nR              (1)     ┐
+  ├── nR              (1)     ┐ number of radial region, nR = len(rZ) + 1
   ├── rmax            (1)     │
   ├── nSa  [if dim>1] (1)     │ Grid definition
   ├── nSb  [if dim>2] (1)     │
   ├── rZ              (nR-1)  ┘
-  ├── nC              (1)     number of coefficients
+  ├── nW              (1)     number of weights
   └── weights         (var)   ┐
       ├── w0          (1)     │ as many as weights
       └── ...                 ┘
@@ -823,7 +822,6 @@ actions
 groups
   ├── atype           (1)     type of the agents in the group  
   ├── nP              (1)     number of perceptions
-  ├── nI              (1)     number of inputs (= number of weights)
   ├── nO              (1)     number of outputs
   ├── perceptions     (var)   ┐
   │   ├── p0          (1)     │ as many as perceptions
@@ -891,11 +889,7 @@ class CUDA:
     agent_drivenity = self.engine.agent_drivenity
 
     # CUDA local array dimensions
-    
-    # m_nR = max(self.engine.groups.l_nR)
-    # m_nCaf = max(self.engine.groups.l_nCaf)
-    # m_nCad = m_nCaf*self.engine.groups.N
-    # m_nI = max(self.engine.groups.l_nI)
+    m_nI = max([x.coefficients.size for x in self.engine.inputs])
 
     # print('gparam', self.engine.groups.param)
     # print('m_nR', m_nR)
@@ -1015,6 +1009,11 @@ class CUDA:
             anoise = agents[i,7]
             bnoise = agents[i,8]
 
+        # --- Group parameters -------------------------------------------------
+
+        # Number of groups
+        nG = groups.shape[0]
+
         # === Computation ======================================================
 
         # Agent polar coordinates
@@ -1031,7 +1030,9 @@ class CUDA:
           for j in range(N):
 
             # Skip self-perception
-            if j==i: continue
+            if j==i: 
+              visible[j] = False
+              continue
 
             # Distance and relative orientation
             match dim:
@@ -1047,34 +1048,325 @@ class CUDA:
           # === INPUTS & WEIGHTS
           
           nP = groups[gid,1]
-          nI = groups[gid,2]
-          nO = groups[gid,3]
+          nO = groups[gid,2]
 
-          # Weighted sums
-          Sv = 0
-          Sa = 0
-          Sb = 0
+          for pi in range(nP):
 
-          for k in range(nI):
+            # Reset local arrays
+            vIn = cuda.local.array(m_nI, nb.complex64)
+            vW = cuda.local.array(m_nI, nb.float32)
 
             # Perception index
-            p = groups[gid,k+4]
+            p = int(groups[gid, pi+3])
 
-            dSv, dSa, dSb = perceive(p)
+            # Grid properties
+            nR = perceptions[p,2]
+            nSa = perceptions[p,4] if dim>1 else 1 
+            nSb = perceptions[p,5] if dim>2 else 1
 
-            Sv += dSv
-            Sa += dSa
-            Sb += dSb
+            # --- Inputs
 
-          # === PROCESSING
-          '''
-          => da, dv
-          '''
+            vIn = perceive(vIn, dim, nR, nSa, nSb, p,
+                     agents, perceptions,
+                      z, alpha, visible)
+            
+            # if i==0:
+            #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
+
+            # --- Normalization
+
+            vIn = normalize(vIn, perceptions[p,1], nG, nR, nSa, nSb)
+
+            if i==0:
+              print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
+              # print(perceptions[p,1])
+      
+        da = 0
+        dv = 0
+
+        # === Update =======================================================
+
+        match dim:
+
+          case 2:
+
+            # Update velocity
+            v += dv
+            a += da
+
+            # --- Noise ----------------------------------------------------
+
+            # Speed noise
+            if vnoise:
+              v += vnoise*xoroshiro128p_normal_float32(rng, i)
+              if v < vmin: v = vmin
+              elif v > vmax: v = vmax
+
+            # Angular noise
+            if anoise:
+              a += anoise*xoroshiro128p_normal_float32(rng, i)
+
+            # Candidate position and velocity
+            z0 = complex(p0[i,0], p0[i,1])
+            z1 = z0 + cmath.rect(v, a)
+
+            # Boundary conditions
+            p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, a, arena,
+                                                          arena_X, arena_Y,
+                                                          periodic_X, periodic_Y)
+
+    # Store CUDA kernel
+    self.step = CUDA_step
+
+# --------------------------------------------------------------------------
+#   Boundary conditions
+# --------------------------------------------------------------------------
+
+@cuda.jit(device=True)
+def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+  '''
+  Relative position and orientation between two agents
+  The output is tuple (z, alpha, status) containing the relative complex polar
+  coordinates z, the relative orientation alpha and the visibility status.
+  NB: in case the distance is above rmax, (0,0,False) is returned
+  '''
+  
+  if arena==Arena.CIRCULAR.value:
+    '''
+    Circular arena
+    '''
+
+    # Complex polar coordinates
+    z = complex(x1-x0, y1-y0)
+
+  elif arena==Arena.RECTANGULAR.value:
+    '''
+    Rectangular arena
+    '''
+
+    # dx
+    if periodic_X:
+      dx = x1-x0 if abs(x1-x0)<=arena_X else ( x1-x0-2*arena_X if x1>x0 else x1-x0+2*arena_X )
+    else:
+      dx = x1-x0
+
+    # dy
+    if periodic_Y:
+      dy = y1-y0 if abs(y1-y0)<=arena_Y else ( y1-y0-2*arena_Y if y1>y0 else y1-y0+2*arena_Y )
+    else:
+      dy = y1-y0
+
+    # Complex polar coordinates
+    z = complex(dx, dy)
+
+  # Out of sight agents
+  if rmax>0 and abs(z)>rmax: return (0, 0, False)
+
+  # Orientation
+  z *= cmath.rect(1., -a0)
+
+  return (z, a1-a0, True)
+
+@cuda.jit(device=True)
+def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+  
+  if v==0:
+    return (z1.real, z1.imag, v, a)
+
+  if arena==Arena.CIRCULAR.value:
+    '''
+    Circular arena
+    '''
+
+    # Check for outsiders
+    if abs(z1) > arena_X:
+      '''
+      Reflexive circular
+      (Periodic boundary conditions are not possible with a circular arena)
+      '''
+
+      # Crossing point
+      phi = a + math.asin((z0.imag*math.cos(a) - z0.real*math.sin(a))/arena_X)
+      zc = cmath.rect(arena_X, phi)
+
+      # Position        
+      z1 = zc + (v-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - a))
+
+      # Final velocity
+      a += cmath.pi-2*(a-phi)
+
+    # Final position
+    px = z1.real
+    py = z1.imag
 
 
+  elif arena==Arena.RECTANGULAR.value:
+    '''
+    Rectangular arena
+    '''
 
-          # Number of groups
-          # nG = gparam.shape[0]
+    zv = cmath.rect(v, a)
+    vx = zv.real
+    vy = zv.imag
+
+    # First dimension
+    if periodic_X:
+
+      if z1.real > arena_X: px = z1.real - 2*arena_X
+      elif z1.real < -arena_X: px = z1.real + 2*arena_X
+      else: px = z1.real
+
+    else:
+
+      if z1.real > arena_X:
+        px = 2*arena_X - z1.real
+        vx = -zv.real
+      elif z1.real < -arena_X:
+        px = -2*arena_X - z1.real
+        vx = -zv.real
+      else:
+        px = z1.real
+
+    # Second dimension
+    if periodic_Y:
+
+      if z1.imag > arena_Y: py = z1.imag - 2*arena_Y
+      elif z1.imag < -arena_Y: py = z1.imag + 2*arena_Y
+      else: py = z1.imag
+
+    else:
+
+      if z1.imag > arena_Y:
+        py = 2*arena_Y - z1.imag
+        vy = -zv.imag
+      elif z1.imag < -arena_Y:
+        py = -2*arena_Y - z1.imag
+        vy = -zv.imag
+      else:
+        py = z1.imag
+
+    v, a = cmath.polar(complex(vx, vy))
+
+  return (px, py, v, a)
+
+@cuda.jit(device=True)
+def perceive(vIn, dim, nR, nSa, nSb, p, agents, perceptions, z, alpha, visible):
+
+  match perceptions[p,0]:
+
+    case Perception.PRESENCE.value | Perception.ORIENTATION.value:
+
+      for j in range(agents.shape[0]):
+
+        # Skip self-perception
+        if not visible[j]: continue
+
+        # Perception rmax
+        rmax = perceptions[p,3]
+        if rmax>0 and abs(z[j])>rmax: continue
+
+        # --- Indices (grid, coefficient)
+
+        # Radial index
+        ri = 0
+        for k in range(nR-1):
+          ri = k
+          if abs(z[j])<perceptions[p, dim+3+k]: break
+          
+        # Angular index
+        ai = int((cmath.phase(z[j]) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
+        bi = 0 # if dim>2 else 0  # TODO: 3D
+
+        # Grid index
+        ig = (ri*nSa + ai)*nSb + bi
+
+        # Coefficient index
+        ic = int(agents[j,0]*nR*nSa*nSb + ig)
+
+        # --- Inputs
+
+        match perceptions[p,0]:
+
+          case Perception.PRESENCE.value:
+            vIn[ic] += 1
+
+          case Perception.ORIENTATION.value:
+            vIn[ic] += cmath.rect(1., alpha[j])
+
+  return vIn
+
+@cuda.jit(device=True)
+def normalize(vIn, ntype, nG, nR, nSa, nSb):
+
+  match ntype:
+
+    case Normalization.SAME_RADIUS.value:
+      '''
+      Normalization over the same radius
+      '''
+
+      for ig in range(nG):
+        for ir in range(nR):
+
+          # Get sum
+          S = 0
+          for k in range(nSa*nSb):
+            S += vIn[int(ig*nR*nSa*nSb + ir*nSa*nSb + k)]
+
+          # Normalization
+          for k in range(nSa*nSb):
+            vIn[int(ig*nR*nSa*nSb + ir*nSa*nSb + k)] /= S
+
+    case Normalization.SAME_SLICE.value:
+      '''
+      Normalization over the same angular slice
+      '''
+      
+      for ig in range(nG):
+        for ia in range(nSa*nSb):
+
+          # Get sum
+          S = 0
+          for k in range(nR):
+            S += vIn[int(ig*nR*nSa*nSb + k*nSa*nSb + ia)]
+
+          # Normalization
+          for k in range(nR):
+            vIn[int(ig*nR*nSa*nSb + k*nSa*nSb + ia)] /= S
+
+    case Normalization.SAME_GROUP.value:
+      '''
+      Normalization over all zones of the same group
+      '''
+
+      for ig in range(nG):
+
+        # Get sum
+        S = 0
+        for k in range(nR*nSa*nSb):
+          S += vIn[int(ig*nR*nSa*nSb + k)]
+
+        # Normalization
+        for k in range(nR*nSa*nSb):
+          vIn[int(ig*nR*nSa*nSb + k)] /= S
+      
+    case Normalization.ALL.value:
+      '''
+      Normalization over all zones of all groups
+      '''
+
+      # Get sum
+      S = 0
+      for k in range(nG*nR*nSa*nSb):
+        S += vIn[k]
+
+      # Normalization
+      for k in range(nG*nR*nSa*nSb):
+        vIn[k] /= S
+
+  return vIn
+
+ # === PROCESSING
 
         #   # === Deserialization of the RIPO parameters ===
           
@@ -1292,176 +1584,3 @@ class CUDA:
 
           #   case _:
           #     dv = 0
-      
-        da = 0
-        dv = 0
-
-        # === Update =======================================================
-
-        match dim:
-
-          case 2:
-
-            # Update velocity
-            v += dv
-            a += da
-
-            # --- Noise ----------------------------------------------------
-
-            # Speed noise
-            if vnoise:
-              v += vnoise*xoroshiro128p_normal_float32(rng, i)
-              if v < vmin: v = vmin
-              elif v > vmax: v = vmax
-
-            # Angular noise
-            if anoise:
-              a += anoise*xoroshiro128p_normal_float32(rng, i)
-
-            # Candidate position and velocity
-            z0 = complex(p0[i,0], p0[i,1])
-            z1 = z0 + cmath.rect(v, a)
-
-            # Boundary conditions
-            p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, a, arena,
-                                                          arena_X, arena_Y,
-                                                          periodic_X, periodic_Y)
-
-    # Store CUDA kernel
-    self.step = CUDA_step
-
-# --------------------------------------------------------------------------
-#   Boundary conditions
-# --------------------------------------------------------------------------
-
-@cuda.jit(device=True)
-def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y):
-  '''
-  Relative position and orientation between two agents
-  The output is tuple (z, alpha, status) containing the relative complex polar
-  coordinates z, the relative orientation alpha and the visibility status.
-  NB: in case the distance is above rmax, (0,0,False) is returned
-  '''
-  
-  if arena==Arena.CIRCULAR.value:
-    '''
-    Circular arena
-    '''
-
-    # Complex polar coordinates
-    z = complex(x1-x0, y1-y0)
-
-  elif arena==Arena.RECTANGULAR.value:
-    '''
-    Rectangular arena
-    '''
-
-    # dx
-    if periodic_X:
-      dx = x1-x0 if abs(x1-x0)<=arena_X else ( x1-x0-2*arena_X if x1>x0 else x1-x0+2*arena_X )
-    else:
-      dx = x1-x0
-
-    # dy
-    if periodic_Y:
-      dy = y1-y0 if abs(y1-y0)<=arena_Y else ( y1-y0-2*arena_Y if y1>y0 else y1-y0+2*arena_Y )
-    else:
-      dy = y1-y0
-
-    # Complex polar coordinates
-    z = complex(dx, dy)
-
-  # Out of sight agents
-  if rmax is not None and abs(z)>rmax: return (0, 0, False)
-
-  # Orientation
-  z *= cmath.rect(1., -a0)
-
-  return (z, a1-a0, True)
-
-@cuda.jit(device=True)
-def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
-  
-  if v==0:
-    return (z1.real, z1.imag, v, a)
-
-  if arena==Arena.CIRCULAR.value:
-    '''
-    Circular arena
-    '''
-
-    # Check for outsiders
-    if abs(z1) > arena_X:
-      '''
-      Reflexive circular
-      (Periodic boundary conditions are not possible with a circular arena)
-      '''
-
-      # Crossing point
-      phi = a + math.asin((z0.imag*math.cos(a) - z0.real*math.sin(a))/arena_X)
-      zc = cmath.rect(arena_X, phi)
-
-      # Position        
-      z1 = zc + (v-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - a))
-
-      # Final velocity
-      a += cmath.pi-2*(a-phi)
-
-    # Final position
-    px = z1.real
-    py = z1.imag
-
-
-  elif arena==Arena.RECTANGULAR.value:
-    '''
-    Rectangular arena
-    '''
-
-    zv = cmath.rect(v, a)
-    vx = zv.real
-    vy = zv.imag
-
-    # First dimension
-    if periodic_X:
-
-      if z1.real > arena_X: px = z1.real - 2*arena_X
-      elif z1.real < -arena_X: px = z1.real + 2*arena_X
-      else: px = z1.real
-
-    else:
-
-      if z1.real > arena_X:
-        px = 2*arena_X - z1.real
-        vx = -zv.real
-      elif z1.real < -arena_X:
-        px = -2*arena_X - z1.real
-        vx = -zv.real
-      else:
-        px = z1.real
-
-    # Second dimension
-    if periodic_Y:
-
-      if z1.imag > arena_Y: py = z1.imag - 2*arena_Y
-      elif z1.imag < -arena_Y: py = z1.imag + 2*arena_Y
-      else: py = z1.imag
-
-    else:
-
-      if z1.imag > arena_Y:
-        py = 2*arena_Y - z1.imag
-        vy = -zv.imag
-      elif z1.imag < -arena_Y:
-        py = -2*arena_Y - z1.imag
-        vy = -zv.imag
-      else:
-        py = z1.imag
-
-    v, a = cmath.polar(complex(vx, vy))
-
-  return (px, py, v, a)
-
-@cuda.jit(device=True)
-def perceive(p):
-  
-  return (0,0,0)

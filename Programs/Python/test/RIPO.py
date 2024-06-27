@@ -39,14 +39,14 @@ G = PolarGrid(rZ=[], nSa = 4)
 
 #  --- Inputs
 in_presence = E.add_input(Perception.PRESENCE,
-                          normalization = Normalization.NONE,
+                          normalization = Normalization.SAME_GROUP,
                           grid = G,
                           coefficients = [1, 1, -1, -1])
 
-in_orientation = E.add_input(Perception.ORIENTATION, 
-                            normalization = Normalization.NONE,
-                            grid = G,
-                            coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
+# in_orientation = E.add_input(Perception.ORIENTATION, 
+#                             normalization = Normalization.NONE,
+#                             grid = G,
+#                             coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
 
 # --- Outputs 
 out_da = E.add_output(Action.REORIENTATION,
@@ -66,7 +66,7 @@ IC = {'position': None,
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
             rmax = None,            
-            inputs=[in_presence, in_orientation], outputs=[out_da])
+            inputs=[in_presence], outputs=[out_da])
 
 E.define_parameters()
 
@@ -89,7 +89,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 
-# E.window.autoplay = False
+E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()
