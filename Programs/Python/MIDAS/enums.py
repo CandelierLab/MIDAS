@@ -72,8 +72,9 @@ class Default(Enum):
   vmin = 0.               # Minimal speed
   vmax = 0.01             # Maximal speed
   rmax = -1               # Maximal radius (negative value means no rmax)
-  damax = np.pi/6         # Maximal reorientation
-  dbmax = np.pi/6         # Maximal reorientation
+  damax = np.pi/2         # Maximal reorientation
+  dbmax = np.pi/2         # Maximal reorientation
+  dcmax = np.pi/2         # Maximal reorientation
   vnoise = 0              # Speed noise
   danoise = 0             # Reorientation noise
   dbnoise = 0              # Reorientation noise

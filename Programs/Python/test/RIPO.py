@@ -35,13 +35,15 @@ E.steps = None
 # --- RIPO agents ----------------------------------------------------------
 
 # polar grid
-G = PolarGrid(rZ=[], nSa = 4)
+G = PolarGrid(rZ=[0], nSa = 4)
+
+coeffs = np.array([1,1,1,1, 0, 0, 0, 0])*1
 
 #  --- Inputs
 in_presence = E.add_input(Perception.PRESENCE,
-                          normalization = Normalization.SAME_GROUP,
+                          normalization = Normalization.NONE,
                           grid = G,
-                          coefficients = [1, 1, -1, -1])
+                          coefficients = coeffs)
 
 # in_orientation = E.add_input(Perception.ORIENTATION, 
 #                             normalization = Normalization.NONE,
@@ -60,16 +62,17 @@ out_da = E.add_output(Action.REORIENTATION,
 N = 100
 IC = {'position': None,
       'orientation': None,
-      'speed': 0.01} 
+      'speed': 0.005} 
 
-# # IC = {'position': [[0,0], [0.2,0.3]],
-# #       'orientation': [1.5, 0],
-# #       'speed': 0.015}
-# # N = len(IC['position']) 
+# IC = {'position': [[0,0], [0.2,0.3]],
+#       'orientation': [1.5, 0],
+#       'speed': 0.015}
+# N = len(IC['position']) 
 
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            rmax = None,            
+            rmax = None, 
+            damax = np.pi/6,           
             inputs=[in_presence], outputs=[out_da])
 
 # === Storage ==============================================================

@@ -1,6 +1,5 @@
 Rationalisation
-- Debug dynamics
-- Rajouter dvmax
+- Changer damax en da_scale
 - Convert coefficients to weights: case FB <> LR !!
 
 Speed test

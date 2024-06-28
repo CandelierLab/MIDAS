@@ -327,7 +327,7 @@ class Input:
     param.append(self.grid.rmax)
     if dimension>1: param.append(self.grid.nSa)
     if dimension>2: param.append(self.grid.nSb)
-    param.append(self.grid.nZ)
+    [param.append(x) for x in self.grid.rZ]
 
     # Coefficients
     param.append(self.coefficients.size)
@@ -668,6 +668,8 @@ class Engine:
 
     # Define parameters (for CUDA)
     self.define_parameters()
+
+    print(self.param_perceptions)
 
     # CUDA object
     self.cuda = CUDA(self)
@@ -1079,17 +1081,10 @@ class CUDA:
             vIn = perceive(vIn, numbers, p,
                      agents, perceptions,
                       z, alpha, visible, m_nI)
-            
-            # if i==0:
-            #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
 
             # --- Normalization
 
             vIn = normalize(vIn, perceptions[p,1], numbers)
-
-            # if i==0:
-            #   print(vIn[0].real, vIn[1].real, vIn[2].real, vIn[3].real)
-              # print(perceptions[p,1])
 
             # === Outputs
 
@@ -1099,7 +1094,7 @@ class CUDA:
 
               for k in range(nI):
 
-                outBuffer[oid] += vIn[k]*perceptions[p, int(dim + nR + 3 + nI*j + k)]
+                outBuffer[oid] += vIn[k]*perceptions[p, int(dim + nR + 3 + nI*oid + k)]
 
           # === Actions
 
@@ -1139,6 +1134,9 @@ class CUDA:
               case Action.SPEED_MODULATION.value:
                 v += output
       
+        # if i==0:
+        #   print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
+
         # === Update =======================================================
 
         match dim:
@@ -1329,7 +1327,7 @@ def perceive(vIn, numbers, p, agents, perceptions, z, alpha, visible, m_nI):
 
         # Radial index
         ri = 0
-        for k in range(nR-1):
+        for k in range(nR):
           ri = k
           if abs(z[j])<perceptions[p, dim+3+k]: break
           
