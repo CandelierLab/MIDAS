@@ -1152,7 +1152,7 @@ class CUDA:
 
           for oid in range(nO):
 
-            aid = int(groups[gid, int(nP+2+oid)])
+            aid = int(groups[gid, int(nP+3+oid)])
 
             otype = actions[aid,0]
             ftype = actions[aid,1]
@@ -1180,7 +1180,8 @@ class CUDA:
               case Action.SPEED_MODULATION.value:
                 v += dv_scale*output
       
-        # if i==0:
+        # if i==1:
+        #   print(aid)
           # print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
           # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
           # print(v)

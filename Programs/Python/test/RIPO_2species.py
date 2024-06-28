@@ -59,7 +59,7 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 1
+N = 10
 
 E.add_group(Agent.RIPO, N, name='agents_1',
             inputs=[in_presence_1], outputs=[out_da])
