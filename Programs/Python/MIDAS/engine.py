@@ -1145,29 +1145,24 @@ class CUDA:
               case Activation.IDENTITY.value:
                 output = outBuffer[oid]
 
-              case Activation.ANGLE.value:
+              case Activation.HSM_POSITIVE.value:
+                output = 2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
 
+              case Activation.HSM_CENTERED.value:
                 output = 4/math.pi*math.atan(math.exp((outBuffer[oid])/2))-1
-                match otype:
-                  case Action.REORIENTATION_TRANSVERSE.value: output *= da_scale
-                  case Action.REORIENTATION_LONGITUDINAL.value: output *= db_scale
-                  case Action.REORIENTATION_FRONTAL.value: output *= dc_scale
-                    
-              case Activation.SPEED.value:
-                output = dv_scale*2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
-
+                  
             # --- Action (velocity updates)
 
             match otype:
 
-              case Action.REORIENTATION.value:
-                a += output                
+              case Action.REORIENTATION.value: 
+                a += da_scale*output
 
               case Action.SPEED_MODULATION.value:
-                v += output
+                v += dv_scale*output
       
-        if i==0:
-          print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
+        # if i==0:
+        #   print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
           # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
           # print(v)
 

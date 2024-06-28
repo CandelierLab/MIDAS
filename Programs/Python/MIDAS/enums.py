@@ -64,8 +64,8 @@ class Action(IntEnum):
 
 class Activation(IntEnum):
   IDENTITY = 0            # No activation
-  ANGLE = 1               # Angular activation
-  SPEED = 2               # Speed activation
+  HSM_POSITIVE = 1        # Half-softmax with output in [0,1]
+  HSM_CENTERED = 2        # Half-softmax with output in [-1,1]
 
 # === Default values =======================================================
 

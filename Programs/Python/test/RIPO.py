@@ -53,10 +53,10 @@ in_presence = E.add_input(Perception.PRESENCE,
 # --- Outputs 
 
 # out_da = E.add_output(Action.REORIENTATION,
-#                       activation = Activation.ANGLE)
+#                       activation = Activation.HSM_CENTERED)
 
 out_dv = E.add_output(Action.SPEED_MODULATION,
-                      activation = Activation.SPEED)
+                      activation = Activation.HSM_CENTERED)
 
 # --- Groups
 
@@ -78,7 +78,7 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # --- Coefficients
 
-E.set_weights(in_presence, np.array([1, 1, 1, 1])*0.01)
+E.set_weights(in_presence, np.array([1, 1, 1, 1])*0.001)
 
 # C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
