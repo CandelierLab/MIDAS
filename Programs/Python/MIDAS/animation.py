@@ -154,7 +154,7 @@ class Animation2d(Animation_2d):
 
         self.add(circle, i,
           position = self.engine.agents.pos[i,:],
-          radius = 0.005,
+          radius = 0.0035,
           colors = clrs,
           zvalue=-1
         )

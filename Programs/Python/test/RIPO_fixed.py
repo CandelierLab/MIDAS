@@ -28,6 +28,10 @@ E.steps = None
 
 # === Agents ===============================================================
 
+# --- Fixed agents ---------------------------------------------------------
+
+E.add_group(Agent.FIXED, 100, name='fixed')
+
 # --- RIPO agents ----------------------------------------------------------
 
 #  --- Inputs
@@ -72,7 +76,7 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # --- Coefficients
 
-E.set_weights(in_presence, np.array([1, 1, 1, 1]))
+E.set_weights(in_presence, np.array([-1, -1, -1, -1, 0.1, 0.1, 0.1, 0.1]))
 
 # C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
@@ -84,6 +88,7 @@ E.set_weights(in_presence, np.array([1, 1, 1, 1]))
 # === Visualization ========================================================
 
 E.setup_animation()
+E.animation.options['fixed']['color'] = 'grey'
 E.animation.options['agents']['cmap'] = 'hsv'
 
 # --- Information

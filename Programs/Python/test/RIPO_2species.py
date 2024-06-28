@@ -35,7 +35,11 @@ E.steps = None
 # polar grid
 G = PolarGrid(rZ=[], nSa = 4)
 
-in_presence = E.add_input(Perception.PRESENCE,
+in_presence_1 = E.add_input(Perception.PRESENCE,
+                          normalization = Normalization.SAME_GROUP,
+                          grid = G)
+
+in_presence_2 = E.add_input(Perception.PRESENCE,
                           normalization = Normalization.SAME_GROUP,
                           grid = G)
 
@@ -55,27 +59,18 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 100
-IC = {'position': None,
-      'orientation': None,
-      'speed': 0.01} 
+N = 1
 
-# IC = {'position': [[0,0], [0.2,0.3]],
-#       'orientation': [1.5, 0],
-#       'speed': 0.01}
-# N = len(IC['position']) 
+E.add_group(Agent.RIPO, N, name='agents_1',
+            inputs=[in_presence_1], outputs=[out_da])
 
-E.add_group(Agent.RIPO, N, name='agents',
-            initial_condition = IC,
-            rmax = None,
-            inputs=[in_presence], outputs=[out_da])
+E.add_group(Agent.RIPO, N, name='agents_2',
+            inputs=[in_presence_2], outputs=[out_da])
 
 # --- Coefficients
 
-E.set_weights(in_presence, np.array([1, 1, 1, 1]))
-
-# C = np.array([1,1,1,1, 0, 0, 0, 0])*2
-
+E.set_weights(in_presence_1, np.array([1, 1, 1, 1, -1, -1, -1, -1]))
+E.set_weights(in_presence_2, np.array([-1, -1, -1, -1, 1, 1, 1, 1]))
 
 # === Storage ==============================================================
 
@@ -84,7 +79,8 @@ E.set_weights(in_presence, np.array([1, 1, 1, 1]))
 # === Visualization ========================================================
 
 E.setup_animation()
-E.animation.options['agents']['cmap'] = 'hsv'
+E.animation.options['agents_1']['color'] = 'cyan'
+E.animation.options['agents_2']['color'] = 'orange'
 
 # --- Information
 
@@ -96,7 +92,7 @@ E.animation.options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 
-# E.window.autoplay = False
+E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()

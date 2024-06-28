@@ -34,7 +34,6 @@ class Coefficients:
       match C:
 
         case CoeffSet.IGNORE: self.C = np.zeros(self.nC)
-        case CoeffSet.ATTRACTION: self.C = np.ones(self.nC)
 
     else:
       self.C = np.array(C)

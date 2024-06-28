@@ -335,8 +335,6 @@ class Input:
         [param.append(w) for w in self.weights]
       case 3: pass
 
-    print(param)
-
     return np.array(param)
 
 # --- Coefficients ---------------------------------------------------------
@@ -510,40 +508,61 @@ class Engine:
     # Agents' groups
     group = arrify(iname)
 
-    # Speed limits
-    vmin = arrify(kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value)
-    vmax = arrify(kwargs['vmax'] if 'vmax' in kwargs else V)
-    
-    # Visibility limit
-    if 'rmax' in kwargs and kwargs['rmax'] is not None:
-      rmax = arrify(kwargs['rmax'])
-    else:
+    match gtype:
 
-      l_rmax = [I.grid.rmax if I.grid is not None else -1 for I in self.inputs]
-      rmax = arrify(-1 if any([x==-1 for x in l_rmax]) else max(l_rmax))
+      case Agent.FIXED:
 
-    # Reorientation scales
-    dv_scale = arrify(kwargs['dv_scale'] if 'dv_scale' in kwargs else Default.dv_scale.value)
-    if self.geom.dimension>1: 
-      da_scale = arrify(kwargs['da_scale'] if 'da_scale' in kwargs else Default.da_scale.value)
-    if self.geom.dimension>2: 
-      db_scale = arrify(kwargs['db_scale'] if 'db_scale' in kwargs else Default.db_scale.value)
-      dc_scale = arrify(kwargs['dc_scale'] if 'dc_scale' in kwargs else Default.dc_scale.value)
+        tmp = arrify(0)
 
-    # Noise
-    if 'noise' in kwargs:
-      vnoise = arrify(kwargs['noise'][0])
-      if self.geom.dimension>1: anoise = arrify(kwargs['noise'][1]) 
-      if self.geom.dimension>2: 
-        bnoise = arrify(kwargs['noise'][2]) 
-        cnoise = arrify(kwargs['noise'][3])
-    else:
-      vnoise = arrify(kwargs['vnoise'] if 'vnoise' in kwargs else Default.vnoise.value)
-      if self.geom.dimension>1:
-        anoise = arrify(kwargs['anoise'] if 'anoise' in kwargs else Default.anoise.value)
-      if self.geom.dimension>2: 
-        bnoise = arrify(kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value)
-        cnoise = arrify(kwargs['cnoise'] if 'cnoise' in kwargs else Default.cnoise.value)
+        vmin = tmp
+        vmax = tmp
+        rmax = tmp
+        dv_scale = tmp
+        vnoise = tmp
+        if self.geom.dimension>1: 
+          da_scale = tmp
+          anoise = tmp
+        if self.geom.dimension>2: 
+          db_scale = tmp
+          dc_scale = tmp
+          bnoise = tmp
+          cnoise = tmp
+
+      case _:
+
+        # Speed limits
+        vmin = arrify(kwargs['vmin'] if 'vmin' in kwargs else Default.vmin.value)
+        vmax = arrify(kwargs['vmax'] if 'vmax' in kwargs else V)
+        
+        # Visibility limit
+        if 'rmax' in kwargs and kwargs['rmax'] is not None:
+          rmax = arrify(kwargs['rmax'])
+        else:
+          l_rmax = [I.grid.rmax if I.grid is not None else -1 for I in self.inputs]
+          rmax = arrify(-1 if any([x==-1 for x in l_rmax]) else max(l_rmax))
+
+        # Reorientation scales
+        dv_scale = arrify(kwargs['dv_scale'] if 'dv_scale' in kwargs else Default.dv_scale.value)
+        if self.geom.dimension>1: 
+          da_scale = arrify(kwargs['da_scale'] if 'da_scale' in kwargs else Default.da_scale.value)
+        if self.geom.dimension>2: 
+          db_scale = arrify(kwargs['db_scale'] if 'db_scale' in kwargs else Default.db_scale.value)
+          dc_scale = arrify(kwargs['dc_scale'] if 'dc_scale' in kwargs else Default.dc_scale.value)
+
+        # Noise
+        if 'noise' in kwargs:
+          vnoise = arrify(kwargs['noise'][0])
+          if self.geom.dimension>1: anoise = arrify(kwargs['noise'][1]) 
+          if self.geom.dimension>2: 
+            bnoise = arrify(kwargs['noise'][2]) 
+            cnoise = arrify(kwargs['noise'][3])
+        else:
+          vnoise = arrify(kwargs['vnoise'] if 'vnoise' in kwargs else Default.vnoise.value)
+          if self.geom.dimension>1:
+            anoise = arrify(kwargs['anoise'] if 'anoise' in kwargs else Default.anoise.value)
+          if self.geom.dimension>2: 
+            bnoise = arrify(kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value)
+            cnoise = arrify(kwargs['cnoise'] if 'cnoise' in kwargs else Default.cnoise.value)
 
     # --- Concatenations
 
@@ -1162,7 +1181,7 @@ class CUDA:
                 v += dv_scale*output
       
         # if i==0:
-        #   print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
+          # print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
           # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
           # print(v)
 
@@ -1417,8 +1436,9 @@ def normalize(vIn, ntype, numbers):
             S += vIn[int(ig*nR*nSb*nSa + ir*nSb*nSa + k)]
 
           # Normalization
-          for k in range(nSb*nSa):
-            vIn[int(ig*nR*nSb*nSa + ir*nSb*nSa + k)] /= S
+          if S!=0:
+            for k in range(nSb*nSa):
+              vIn[int(ig*nR*nSb*nSa + ir*nSb*nSa + k)] /= S
 
     case Normalization.SAME_SLICE.value:
       '''
@@ -1434,8 +1454,9 @@ def normalize(vIn, ntype, numbers):
             S += vIn[int(ig*nR*nSb*nSa + k*nSb*nSa + ia)]
 
           # Normalization
-          for k in range(nR):
-            vIn[int(ig*nR*nSb*nSa + k*nSb*nSa + ia)] /= S
+          if S!=0:
+            for k in range(nR):
+              vIn[int(ig*nR*nSb*nSa + k*nSb*nSa + ia)] /= S
 
     case Normalization.SAME_GROUP.value:
       '''
@@ -1450,8 +1471,9 @@ def normalize(vIn, ntype, numbers):
           S += vIn[int(ig*nR*nSb*nSa + k)]
 
         # Normalization
-        for k in range(nR*nSb*nSa):
-          vIn[int(ig*nR*nSb*nSa + k)] /= S
+        if S!=0:
+          for k in range(nR*nSb*nSa):
+            vIn[int(ig*nR*nSb*nSa + k)] /= S
       
     case Normalization.ALL.value:
       '''
@@ -1464,7 +1486,8 @@ def normalize(vIn, ntype, numbers):
         S += vIn[k]
 
       # Normalization
-      for k in range(nG*nR*nSb*nSa):
-        vIn[k] /= S
+      if S!=0:
+        for k in range(nG*nR*nSb*nSa):
+          vIn[k] /= S
 
   return vIn

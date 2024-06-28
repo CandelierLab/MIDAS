@@ -1,8 +1,4 @@
-Rationalisation
-- Convert coefficients to weights: case FB <> LR !!
-
 Test:
-- Speed modulation
 - Fixed points (different groups)
 - Two populations
 

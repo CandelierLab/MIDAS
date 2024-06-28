@@ -21,7 +21,7 @@ class Agent(IntEnum):
 
 class CoeffSet(IntEnum):
   IGNORE = 0
-  ATTRACTION = 1
+  #  PRESENCE_ATTRACTION = 1     To implement
 
 # === Perception functions =================================================
 
