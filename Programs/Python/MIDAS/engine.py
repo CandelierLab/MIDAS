@@ -191,22 +191,33 @@ class Agents:
     self.vmin = np.empty(0)
     self.vmax = np.empty(0)
     self.rmax = np.empty(0)
+
+    # Scales
+    self.dv_scale = np.empty(0)
     if self.dimension>1: self.da_scale = np.empty(0)
-    if self.dimension>2: self.db_scale = np.empty(0)
+    if self.dimension>2: 
+      self.db_scale = np.empty(0)
+      self.dc_scale = np.empty(0)
 
     # Noise
     self.vnoise = np.empty(0)
     if self.dimension>1: self.anoise = np.empty(0)
-    if self.dimension>2: self.bnoise = np.empty(0)    
+    if self.dimension>2: 
+      self.bnoise = np.empty(0)
+      self.cnoise = np.empty(0)
 
   def get_param(self):
 
-    tmp = [self.group, self.vmin, self.vmax, self.rmax]
+    tmp = [self.group, self.vmin, self.vmax, self.rmax, self.dv_scale]
     if self.dimension>1: tmp.append(self.da_scale)
-    if self.dimension>2: tmp.append(self.db_scale)
+    if self.dimension>2: 
+      tmp.append(self.db_scale)
+      tmp.append(self.dc_scale)
     tmp.append(self.vnoise)
     if self.dimension>1: tmp.append(self.anoise)
-    if self.dimension>2: tmp.append(self.bnoise)
+    if self.dimension>2:
+      tmp.append(self.bnoise)
+      tmp.append(self.cnoise)
 
     return np.column_stack(tmp)
 
@@ -514,19 +525,28 @@ class Engine:
       l_rmax = [I.grid.rmax if I.grid is not None else -1 for I in self.inputs]
       rmax = arrify(-1 if any([x==-1 for x in l_rmax]) else max(l_rmax))
 
-    # Reorientation limits
-    if self.geom.dimension>1: da_scale = arrify(kwargs['da_scale'] if 'da_scale' in kwargs else Default.da_scale.value)
-    if self.geom.dimension>2: db_scale = arrify(kwargs['db_scale'] if 'db_scale' in kwargs else Default.db_scale.value)
+    # Reorientation scales
+    dv_scale = arrify(kwargs['dv_scale'] if 'dv_scale' in kwargs else Default.dv_scale.value)
+    if self.geom.dimension>1: 
+      da_scale = arrify(kwargs['da_scale'] if 'da_scale' in kwargs else Default.da_scale.value)
+    if self.geom.dimension>2: 
+      db_scale = arrify(kwargs['db_scale'] if 'db_scale' in kwargs else Default.db_scale.value)
+      dc_scale = arrify(kwargs['dc_scale'] if 'dc_scale' in kwargs else Default.dc_scale.value)
 
     # Noise
     if 'noise' in kwargs:
       vnoise = arrify(kwargs['noise'][0])
       if self.geom.dimension>1: anoise = arrify(kwargs['noise'][1]) 
-      if self.geom.dimension>2: bnoise = arrify(kwargs['noise'][2]) 
+      if self.geom.dimension>2: 
+        bnoise = arrify(kwargs['noise'][2]) 
+        cnoise = arrify(kwargs['noise'][3])
     else:
       vnoise = arrify(kwargs['vnoise'] if 'vnoise' in kwargs else Default.vnoise.value)
-      if self.geom.dimension>1: anoise = arrify(kwargs['anoise'] if 'anoise' in kwargs else Default.anoise.value)
-      if self.geom.dimension>2: bnoise = arrify(kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value)
+      if self.geom.dimension>1:
+        anoise = arrify(kwargs['anoise'] if 'anoise' in kwargs else Default.anoise.value)
+      if self.geom.dimension>2: 
+        bnoise = arrify(kwargs['bnoise'] if 'bnoise' in kwargs else Default.bnoise.value)
+        cnoise = arrify(kwargs['cnoise'] if 'cnoise' in kwargs else Default.cnoise.value)
 
     # --- Concatenations
 
@@ -535,12 +555,15 @@ class Engine:
     self.agents.vmax = np.concatenate((self.agents.vmax, vmax), axis=0)
     self.agents.rmax = np.concatenate((self.agents.rmax, rmax), axis=0)
     self.agents.vnoise = np.concatenate((self.agents.vnoise, vnoise), axis=0)
+    self.agents.dv_scale = np.concatenate((self.agents.dv_scale, dv_scale), axis=0)
     if self.geom.dimension>1:
       self.agents.da_scale = np.concatenate((self.agents.da_scale, da_scale), axis=0)
       self.agents.anoise = np.concatenate((self.agents.anoise, anoise), axis=0)
     if self.geom.dimension>2:
       self.agents.db_scale = np.concatenate((self.agents.db_scale, db_scale), axis=0)
+      self.agents.dc_scale = np.concatenate((self.agents.dc_scale, dc_scale), axis=0)
       self.agents.bnoise = np.concatenate((self.agents.bnoise, bnoise), axis=0)
+      self.agents.cnoise = np.concatenate((self.agents.cnoise, cnoise), axis=0)
 
     # --- Groups specifications --------------------------------------------
 
@@ -798,11 +821,17 @@ geometry
 
           [Agent parameters]  (N rows)
 agents
-  ├── group           (1)     group index
-  ├── vlim            (2)     speed limits (vmin, vmax)
-  ├── rmax            (1)     maximal distance for visibility
-  ├── da_scale           (dim-1) reorientation limits (da_scale, db_scale)
-  └── noise           (dim)   (vnoise, anoise, bnoise)
+  ├── group             (1)   group index
+  ├── vlim              (2)   speed limits (vmin, vmax)
+  ├── rmax              (1)   maximal distance for visibility
+  ├── dv_scale          (1)   speed modulation scale
+  ├── da_scale  [dim>1] (1)   ┐ 
+  ├── db_scale  [dim>2] (1)   │ reorientation scale
+  ├── dc_scale  [dim>2] (1)   ┘
+  ├── vnoise            (1)   speed noise
+  ├── anoise    [dim>1] (1)   ┐
+  ├── bnoise    [dim>2] (1)   │ reorientation noises
+  └── cnoise    [dim>2] (1)   ┘
 
            [Input parameters] (nP rows)
 perceptions
@@ -810,8 +839,8 @@ perceptions
   ├── ntype           (1)     normalization type
   ├── nR              (1)     ┐ number of radial region, nR = len(rZ) + 1
   ├── rmax            (1)     │
-  ├── nSa  [if dim>1] (1)     │ Grid definition
-  ├── nSb  [if dim>2] (1)     │
+  ├── nSa     [dim>1] (1)     │ Grid definition
+  ├── nSb     [dim>2] (1)     │
   ├── rZ              (nR-1)  ┘
   ├── nW              (1)     number of weights
   └── weights         (var)   ┐
@@ -989,23 +1018,26 @@ class CUDA:
 
         # Visibility limit
         rmax = agents[i,3]
+        dv_scale = agents[i,4]
 
         match dim:
 
           case 1:
-            vnoise = agents[i,4]
+            vnoise = agents[i,5]
 
           case 2:
-            da_scale = agents[i,4]
-            vnoise = agents[i,5]
-            anoise = agents[i,6]
-
-          case 3:
-            da_scale = agents[i,4]
-            db_scale = agents[i,5]
+            da_scale = agents[i,5]
             vnoise = agents[i,6]
             anoise = agents[i,7]
-            bnoise = agents[i,8]
+
+          case 3:
+            da_scale = agents[i,5]
+            db_scale = agents[i,6]
+            dc_scale = agents[i,7]
+            vnoise = agents[i,8]
+            anoise = agents[i,9]
+            bnoise = agents[i,10]
+            cnoise = agents[i,11]
 
         # === Computation ======================================================
 
@@ -1116,11 +1148,10 @@ class CUDA:
                 match otype:
                   case Action.REORIENTATION_TRANSVERSE.value: output *= da_scale
                   case Action.REORIENTATION_LONGITUDINAL.value: output *= db_scale
-                  # case Action.REORIENTATION_FRONTAL.value: output *= dcmax
+                  case Action.REORIENTATION_FRONTAL.value: output *= dc_scale
                     
               case Activation.SPEED.value:
-                dvmax = 1
-                output = dvmax*2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
+                output = dv_scale*2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
 
             # --- Action (velocity updates)
 
@@ -1133,7 +1164,8 @@ class CUDA:
                 v += output
       
         # if i==0:
-        #   print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
+          # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
+          # print(outBuffer[0], da_scale, output)
 
         # === Update =======================================================
 

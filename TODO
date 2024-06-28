@@ -1,6 +1,4 @@
 Rationalisation
-- Changer damax en da_scale
-- Introduire dv_scale et dc...
 - Convert coefficients to weights: case FB <> LR !!
 
 Test:
