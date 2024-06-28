@@ -90,3 +90,9 @@ class Verbose(IntEnum):
   NONE = 0
   NORMAL = 1
   HIGH = 2
+
+# === Animation type ========================================================
+
+class Animation(IntEnum):
+  AGENTS = 0
+  FIELD_DENSITY = 1

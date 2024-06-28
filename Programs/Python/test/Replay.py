@@ -12,7 +12,7 @@ R = Replay('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
 
 # === Visualization ========================================================
 
-R.animation.options['agents']['cmap'] = 'hsv'
+# R.animation.options['agents']['cmap'] = 'hsv'
 
 # # --- Information
 

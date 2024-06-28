@@ -4,6 +4,7 @@ import numpy as np
 from Animation.Window import Window
 import MIDAS.animation
 
+from MIDAS.enums import *
 from MIDAS.storage import Storage
 from MIDAS.engine import Geometry,Agents, Groups
 
@@ -73,6 +74,9 @@ class Replay():
 
     # --- Animation --------------------------------------------------------
 
+    # animation_type = Animation.AGENTS
+    animation_type = Animation.FIELD_DENSITY
+
     self.window = Window('MIDAS (replay)', style=style)
     self.window.step_max = self.duration-1
 
@@ -80,7 +84,14 @@ class Replay():
       case 1:
         pass
       case 2:
-        self.animation = MIDAS.animation.Animation2d(self)
+        match animation_type:
+
+          case Animation.AGENTS:
+            self.animation = MIDAS.animation.Agents_2d(self)
+
+          case Animation.FIELD_DENSITY:
+            self.animation = MIDAS.animation.Field(self)
+
       case 3:
         pass
     

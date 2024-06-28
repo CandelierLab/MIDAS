@@ -590,7 +590,7 @@ class Engine:
   #   Setups
   # ------------------------------------------------------------------------
 
-  def setup_animation(self, style='dark'):
+  def setup_animation(self, animation_type=Animation.AGENTS, style='dark'):
     '''
     Define animation
     '''
@@ -601,7 +601,14 @@ class Engine:
       case 1:
         pass
       case 2:
-        self.animation = MIDAS.animation.Animation2d(self)
+        match animation_type:
+
+          case Animation.AGENTS:
+            self.animation = MIDAS.animation.Agents_2d(self)
+
+          case Animation.FIELD_DENSITY:
+            self.animation = MIDAS.animation.Field(self)
+
       case 3:
         pass
     

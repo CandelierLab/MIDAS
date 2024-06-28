@@ -7,7 +7,7 @@ import numpy as np
 import sqlite3
 
 from MIDAS.enums import *
-from MIDAS.verbose import Verbose
+from MIDAS.verbose import cli_Reporter
 
 # === STORAGE ==============================================================
 
@@ -16,7 +16,7 @@ class Storage():
   def __init__(self, db_file, verbose=None):
 
     self.version = 1
-    self.verbose = Verbose() if verbose is None else verbose
+    self.verbose = cli_Reporter() if verbose is None else verbose
 
     # --- Database source file
 

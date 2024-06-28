@@ -1,16 +1,12 @@
 import re
 from screeninfo import get_monitors
+from scipy.ndimage import gaussian_filter
 
 from MIDAS.enums import *
-
 from Animation.Animation_2d import *
 from Animation.Colormap import *
 
-class Animation2d(Animation_2d):
-    
-  # ------------------------------------------------------------------------
-  #   Constructor
-  # ------------------------------------------------------------------------
+class BaseAnim(Animation_2d):
 
   def __init__(self, engine):
 
@@ -23,9 +19,96 @@ class Animation2d(Animation_2d):
                      boundaries=[np.array([-1, 1])*self.engine.geom.arena_shape[0]/2,
                                  np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
                      disp_boundaries=False)
+    
+    # Options
+    self.options = {}
+
+  def set_boundaries(self, rescale=False):
+    '''
+    Set the boundaries
+    '''
+
+    # Arena bounds
+    if rescale:
+      bounds_x = np.array([0, 1])
+      bounds_y = np.array([0, 1])
+    else:
+      bounds_x = np.array([-1, 1])*self.engine.geom.arena_shape[0]/2
+      bounds_y = np.array([-1, 1])*self.engine.geom.arena_shape[1]/2
+
+    thickness = int(get_monitors()[0].width/1920)
+
+    match self.engine.geom.arena:
+
+      case Arena.CIRCULAR:
+        
+        if self.engine.geom.periodic:
+          self.add(circle, 'boundary', 
+                   position = [0,0],
+                   radius = self.engine.geom.arena_shape[0]/2,
+                   colors = (None, 'grey'),
+                   linestyle = '--',
+                  thickness=thickness)
+        else:
+          self.add(circle, 'boundary', 
+                   position = [0,0],
+                   radius = self.engine.geom.arena_shape[0]/2,
+                   colors = (None, 'white'),
+                  thickness=thickness)
+
+      case Arena.RECTANGULAR:
+        
+        pts_left = [[bounds_x[0], bounds_y[0]], [bounds_x[0], bounds_y[1]]]
+        pts_right = [[bounds_x[1], bounds_y[0]], [bounds_x[1], bounds_y[1]]]
+        pts_top = [[bounds_x[0], bounds_y[1]], [bounds_x[1], bounds_y[1]]]
+        pts_bottom = [[bounds_x[0], bounds_y[0]], [bounds_x[1], bounds_y[0]]]
+
+        # pts_left = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
+        #             [-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
+        # pts_right = [[self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
+        #              [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
+        # pts_top = [[-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2],
+        #             [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
+        # pts_bottom = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
+        #             [self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2]]
+
+        # X-periodicity
+        if self.engine.geom.periodic[0]:
+          self.add(line, 'boundary_left', points = pts_left, color = 'grey', linestyle = '--', thickness=thickness)
+          self.add(line, 'boundary_right', points = pts_right, color = 'grey', linestyle = '--', thickness=thickness)
+        else:
+          self.add(line, 'boundary_left', points = pts_left, color = 'white', thickness=thickness)
+          self.add(line, 'boundary_right', points = pts_right, color = 'white', thickness=thickness)
+
+        # Y-periodicity
+        if self.engine.geom.periodic[1]:
+          self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--', thickness=thickness)
+          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--', thickness=thickness)
+        else:
+          self.add(line, 'boundary_top', points = pts_top, color = 'white', thickness=thickness)
+          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white', thickness=thickness)
+
+############################################################################
+############################################################################
+# #                                                                      # #
+# #                                                                      # #
+# #                              AGENTS                                  # #
+# #                                                                      # #
+# #                                                                      # #
+############################################################################
+############################################################################
+
+class Agents_2d(BaseAnim):
+    
+  # ------------------------------------------------------------------------
+  #   Constructor
+  # ------------------------------------------------------------------------
+
+  def __init__(self, engine):
+
+    super().__init__(engine)
 
     # Default display options
-    self.options = {}
     for k in self.engine.groups.names:
       self.options[k] = {
         'color': 'white', 
@@ -53,52 +136,7 @@ class Animation2d(Animation_2d):
 
     # === Boundaries =======================================================
 
-    thickness = int(get_monitors()[0].width/1920)
-
-    match self.engine.geom.arena:
-
-      case Arena.CIRCULAR:
-        
-        if self.engine.geom.periodic:
-          self.add(circle, 'boundary', 
-                   position = [0,0],
-                   radius = self.engine.geom.arena_shape[0]/2,
-                   colors = (None, 'grey'),
-                   linestyle = '--',
-                  thickness=thickness)
-        else:
-          self.add(circle, 'boundary', 
-                   position = [0,0],
-                   radius = self.engine.geom.arena_shape[0]/2,
-                   colors = (None, 'white'),
-                  thickness=thickness)
-
-      case Arena.RECTANGULAR:
-        
-        pts_left = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
-                    [-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
-        pts_right = [[self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
-                     [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
-        pts_top = [[-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2],
-                    [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
-        pts_bottom = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
-                    [self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2]]
-
-        # X-periodicity
-        if self.engine.geom.periodic[0]:
-          self.add(line, 'boundary_left', points = pts_left, color = 'grey', linestyle = '--', thickness=thickness)
-          self.add(line, 'boundary_right', points = pts_right, color = 'grey', linestyle = '--', thickness=thickness)
-        else:
-          self.add(line, 'boundary_left', points = pts_left, color = 'white', thickness=thickness)
-          self.add(line, 'boundary_right', points = pts_right, color = 'white', thickness=thickness)
-
-        # Y-periodicity
-        if self.engine.geom.periodic[1]:
-          self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--', thickness=thickness)
-          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--', thickness=thickness)
-        else:
-          self.add(line, 'boundary_top', points = pts_top, color = 'white', thickness=thickness)
-          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white', thickness=thickness)
+    self.set_boundaries()
 
     # === Agents ===========================================================
 
@@ -290,7 +328,7 @@ class Animation2d(Animation_2d):
     for i in range(self.engine.agents.N):
 
       # Skip fixed agents
-      if self.engine.groups.atype[int(self.engine.agents.group[i])]==0: continue
+      if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED: continue
 
       # Position
       self.item[i].position = self.engine.agents.pos[i]
@@ -319,3 +357,65 @@ class Animation2d(Animation_2d):
     
     if self.is_running:
       self.engine.end()
+
+############################################################################
+############################################################################
+# #                                                                      # #
+# #                                                                      # #
+# #                              FIELDS                                  # #
+# #                                                                      # #
+# #                                                                      # #
+############################################################################
+############################################################################
+
+class Field(BaseAnim):
+
+  def __init__(self, engine):
+
+    super().__init__(engine)
+
+    self.options['resolution'] = [500, 500]
+    self.options['sigma'] = 5
+    self.options['range'] = [0, 1]
+    
+  def initialize(self):
+    
+    # Boundaries
+    self.set_boundaries(rescale=True)
+
+    # Image container
+    self.add(image, 'background',
+      cmap = Colormap('turbo', range=self.options['range']),
+      zvalue = -1,
+    )
+
+    # Initial display
+    self.update_display(0)
+
+  def update(self, t):
+
+    # Update timer display
+    super().update(t)
+
+    # Compute step
+    self.engine.step(t.step)
+
+    # Update display
+    self.update_display(t.step)
+    
+  def update_display(self, t):
+
+    # Raw density
+    Img = np.zeros((self.options['resolution'][1], self.options['resolution'][0]))
+
+    for k in range(self.engine.agents.N):
+
+      i = round((0.5 + self.engine.agents.pos[k][0]/self.engine.geom.arena_shape[0])*(self.options['resolution'][0]-1))
+      j = round((0.5 + self.engine.agents.pos[k][1]/self.engine.geom.arena_shape[1])*(self.options['resolution'][1]-1))
+
+      Img[j,i] += 1
+      
+    # Gaussian smooth
+    Res = gaussian_filter(Img, (self.options['sigma'], self.options['sigma']))
+
+    self.item['background'].image = Res

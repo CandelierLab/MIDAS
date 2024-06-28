@@ -79,7 +79,7 @@ E.set_weights(in_presence, np.array([1, 1, 1, 1]))
 
 # === Storage ==============================================================
 
-E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
+# E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
 
 # E.storage.db_commit_each_step = True
 
@@ -87,6 +87,10 @@ E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.d
 
 # E.setup_animation()
 # E.animation.options['agents']['cmap'] = 'hsv'
+
+E.setup_animation(Animation.FIELD_DENSITY)
+E.animation.options['sigma'] = 5
+E.animation.options['range'] = [0, 1]
 
 # --- Information
 
