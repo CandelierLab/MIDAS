@@ -1,6 +1,14 @@
 Rationalisation
 - Changer damax en da_scale
+- Introduire dv_scale et dc...
 - Convert coefficients to weights: case FB <> LR !!
+
+Test:
+- Speed modulation
+- Fixed points (different groups)
+- Two populations
+- 
+
 
 Speed test
 

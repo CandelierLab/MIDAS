@@ -20,9 +20,6 @@ class Agent(IntEnum):
 # === Perception functions =================================================
 
 class Perception(IntEnum):
-  '''
-  
-  '''
 
   # Agent-dependent
   PRESENCE = 100          # Presence (count agents)
@@ -72,12 +69,14 @@ class Default(Enum):
   vmin = 0.               # Minimal speed
   vmax = 0.01             # Maximal speed
   rmax = -1               # Maximal radius (negative value means no rmax)
-  damax = np.pi/2         # Maximal reorientation
-  dbmax = np.pi/2         # Maximal reorientation
-  dcmax = np.pi/2         # Maximal reorientation
+  dv_scale = 1            # Speed modulation scale
+  da_scale = np.pi/2      # Reorientation scale
+  db_scale = np.pi/2      # Reorientation scale
+  dc_scale = np.pi/2      # Reorientation scale
   vnoise = 0              # Speed noise
-  danoise = 0             # Reorientation noise
-  dbnoise = 0              # Reorientation noise
+  anoise = 0              # Reorientation noise
+  bnoise = 0              # Reorientation noise
+  cnoise = 0              # Reorientation noise
 
 # === Verbose level ========================================================
 
