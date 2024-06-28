@@ -17,6 +17,12 @@ class Agent(IntEnum):
   FIXED = 0
   RIPO = 1
 
+# === Coefficients sets ====================================================
+
+class CoeffSet(IntEnum):
+  IGNORE = 0
+  ATTRACTION = 1
+
 # === Perception functions =================================================
 
 class Perception(IntEnum):

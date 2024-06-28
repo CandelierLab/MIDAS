@@ -3,7 +3,9 @@ import time
 import numpy as np
 
 from MIDAS.enums import *
-from MIDAS.engine import PolarGrid, Engine
+from MIDAS.polar_grid import PolarGrid
+from MIDAS.coefficients import Coefficients
+from MIDAS.engine import Engine
 
 os.system('clear')
 
@@ -34,16 +36,14 @@ E.steps = None
 
 # --- RIPO agents ----------------------------------------------------------
 
-# polar grid
-G = PolarGrid(rZ=[0.5], nSa = 4)
-
-coeffs = np.array([1,1,1,1, 0, 0, 0, 0])*2
-
 #  --- Inputs
+
+# polar grid
+G = PolarGrid(rZ=[], nSa = 4)
+
 in_presence = E.add_input(Perception.PRESENCE,
                           normalization = Normalization.SAME_GROUP,
-                          grid = G,
-                          coefficients = coeffs)
+                          grid = G)
 
 # in_orientation = E.add_input(Perception.ORIENTATION, 
 #                             normalization = Normalization.NONE,
@@ -52,11 +52,13 @@ in_presence = E.add_input(Perception.PRESENCE,
 
 # --- Outputs 
 
-out_da = E.add_output(Action.REORIENTATION,
-                      activation = Activation.ANGLE)
+# out_da = E.add_output(Action.REORIENTATION,
+#                       activation = Activation.ANGLE)
 
-# out_dv = E.add_output(Action.SPEED_MODULATION,
-#                       activation = Activation.SPEED)
+out_dv = E.add_output(Action.SPEED_MODULATION,
+                      activation = Activation.SPEED)
+
+# --- Groups
 
 # Initial conditions
 N = 100
@@ -72,7 +74,14 @@ IC = {'position': None,
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
             rmax = None,
-            inputs=[in_presence], outputs=[out_da])
+            inputs=[in_presence], outputs=[out_dv])
+
+# --- Coefficients
+
+E.set_weights(in_presence, np.array([1, 1, 1, 1])*0.01)
+
+# C = np.array([1,1,1,1, 0, 0, 0, 0])*2
+
 
 # === Storage ==============================================================
 

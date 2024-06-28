@@ -13,6 +13,7 @@ from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_
 
 from Animation.Window import Window
 
+from MIDAS.coefficients import Coefficients
 from MIDAS.storage import Storage
 from MIDAS.enums import *
 import MIDAS.animation
@@ -288,24 +289,6 @@ class Groups:
     
     return l_gparam
 
-# === GRIDS ===============================================================
-
-class PolarGrid:
-  '''
-  Polar grid
-  '''
-
-  def __init__(self, rZ=[], rmax=-1, nSa=1, nSb=1):
-
-    self.rZ = np.array(rZ)
-    self.nR = self.rZ.size + 1
-    self.rmax = rmax
-
-    self.nSa = nSa
-    self.nSb = nSb    
-
-    self.nZ = self.nR*self.nSa*self.nSb
-    
 # === INPUTS ===============================================================
 
 class Input:
@@ -323,7 +306,10 @@ class Input:
 
     # Grid
     self.grid = kwargs['grid'] if 'grid' in kwargs else None
-    self.coefficients = np.array(kwargs['coefficients']) if 'coefficients' in kwargs else None
+
+    # Weights (set after groups definitions)
+    self._coefficients =  None
+    self.weights = None
 
   def get_param(self, dimension, nG, **kwargs):
     '''
@@ -340,18 +326,29 @@ class Input:
     if dimension>2: param.append(self.grid.nSb)
     [param.append(x) for x in self.grid.rZ]
 
-    # Coefficients
-    param.append(self.coefficients.size)
+    # weights
+    param.append(self.weights.size)
 
     match dimension:
       case 1: pass
       case 2:
-        for i,c in enumerate(self.coefficients):
-          param.append(c if (i % self.grid.nSa)<self.grid.nSa/2 else -c)
+        [param.append(w) for w in self.weights]
       case 3: pass
+
+    print(param)
 
     return np.array(param)
 
+# --- Coefficients ---------------------------------------------------------
+
+  @property
+  def coefficients(self): return self._coefficients
+
+  @coefficients.setter
+  def coefficients(self, C):
+    self._coefficients = C
+    self.weights = C.to_weights()
+    
 # === OUPUTS ===============================================================
 
 class Output:
@@ -607,6 +604,12 @@ class Engine:
   # ------------------------------------------------------------------------
   #   Run process
   # ------------------------------------------------------------------------
+
+  def set_weights(self, i, C):
+    '''
+    Set the weights
+    '''
+    self.inputs[i].coefficients = Coefficients(self, i, C)
 
   def define_parameters(self):
     '''
@@ -923,7 +926,7 @@ class CUDA:
     agent_drivenity = self.engine.agent_drivenity
 
     # CUDA local array dimensions
-    m_nI = max([x.coefficients.size for x in self.engine.inputs])
+    m_nI = max([x.weights.size for x in self.engine.inputs])
     m_nO = max([len(x) for x in self.engine.groups.outputs])
    
     # from test_package import test_fun
@@ -1163,9 +1166,10 @@ class CUDA:
               case Action.SPEED_MODULATION.value:
                 v += output
       
-        # if i==0:
+        if i==0:
+          print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
           # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
-          # print(outBuffer[0], da_scale, output)
+          # print(v)
 
         # === Update =======================================================
 
@@ -1178,8 +1182,10 @@ class CUDA:
             # Speed noise
             if vnoise:
               v += vnoise*xoroshiro128p_normal_float32(rng, i)
-              if v < vmin: v = vmin
-              elif v > vmax: v = vmax
+
+            # Speed limits
+            if v < vmin: v = vmin
+            elif v > vmax: v = vmax
 
             # Angular noise
             if anoise:
