@@ -798,8 +798,10 @@ class Engine:
     '''
     Operations to do when the simalutation is over
     '''
+
     # End of simulation
-    self.verbose('End of simulation @ {:d} steps ({:.2f} s)'.format(self.window.step, time.time()-self.tref))
+    nstep = self.window.step if self.animation is not None else self.steps
+    self.verbose(f'End of simulation @ {nstep:d} steps ({time.time()-self.tref:.2f} s)')
     self.verbose.line()
 
     # End storage
@@ -1152,7 +1154,7 @@ class CUDA:
 
           for oid in range(nO):
 
-            aid = int(groups[gid, int(nP+3+oid)])
+            aid = int(groups[gid, int(nP + 3 + oid)])
 
             otype = actions[aid,0]
             ftype = actions[aid,1]

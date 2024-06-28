@@ -59,7 +59,7 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 10
+N = 100
 
 E.add_group(Agent.RIPO, N, name='agents_1',
             inputs=[in_presence_1], outputs=[out_da])
@@ -69,8 +69,8 @@ E.add_group(Agent.RIPO, N, name='agents_2',
 
 # --- Coefficients
 
-E.set_weights(in_presence_1, np.array([1, 1, 1, 1, -1, -1, -1, -1]))
-E.set_weights(in_presence_2, np.array([-1, -1, -1, -1, 1, 1, 1, 1]))
+E.set_weights(in_presence_1, np.array([1, 1, 1, 1, 0, 0, 0, 0]))
+E.set_weights(in_presence_2, np.array([1, 1, 1, 1, -1, -1, -1, -1]))
 
 # === Storage ==============================================================
 
@@ -92,7 +92,7 @@ E.animation.options['agents_2']['color'] = 'orange'
 
 # === Simulation ===========================================================
 
-E.window.autoplay = False
+# E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()

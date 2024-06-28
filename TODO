@@ -1,14 +1,8 @@
-Test:
-- Fixed points (different groups)
-- Two populations
-
-Speed test
-
-Smart parameters
-
 Visualization
   - Traces
   - Density field
+  - Polarization field
+  - Tracers
   - Informations
 
 ---------------------------------------------------------

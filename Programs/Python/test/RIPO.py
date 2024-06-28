@@ -19,7 +19,7 @@ E = Engine()
 # E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
-E.steps = None
+E.steps = 1000
 
 # Verbose
 # E.verbose.level = Verbose.HIGH
@@ -55,7 +55,7 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 100
+N = 1000
 IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
@@ -79,12 +79,14 @@ E.set_weights(in_presence, np.array([1, 1, 1, 1]))
 
 # === Storage ==============================================================
 
-# E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
+E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
+
+# E.storage.db_commit_each_step = True
 
 # === Visualization ========================================================
 
-E.setup_animation()
-E.animation.options['agents']['cmap'] = 'hsv'
+# E.setup_animation()
+# E.animation.options['agents']['cmap'] = 'hsv'
 
 # --- Information
 
