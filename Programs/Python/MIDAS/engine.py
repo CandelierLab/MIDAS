@@ -409,6 +409,7 @@ class Engine:
     self.param_perceptions = None
     self.param_outputs = None
     self.param_groups = None
+    self.param_custom = None
 
     # CUDA variables
     self.agent_drivenity = False
@@ -427,6 +428,7 @@ class Engine:
 
     # --- Misc attributes
     
+    self.custom = {}
     self.verbose = MIDAS.verbose.cli_Reporter()
     self.verbose.level = Verbose.NORMAL
 
@@ -685,6 +687,10 @@ class Engine:
     # Concatenate
     self.param_groups = np.row_stack(l_gparam)
 
+    # --- Custom parameters ------------------------------------------------
+
+    self.param_custom = np.array([self.custom[x] for x in sorted(self.custom)])
+
   def run(self):
 
     # === Checks ===========================================================
@@ -738,6 +744,7 @@ class Engine:
     self.cuda.perceptions = cuda.to_device(self.param_perceptions.astype(np.float32))
     self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
     self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
+    self.cuda.custom = cuda.to_device(self.param_custom.astype(np.float32))
 
     # Double buffers
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
@@ -776,7 +783,7 @@ class Engine:
     if i % 2:
       
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
-        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.custom,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.rng)
       
@@ -788,7 +795,7 @@ class Engine:
     else:
 
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
-        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.custom,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.rng)
       
@@ -901,6 +908,9 @@ groups
       ├── o0          (1)     │ as many as outputs
       └── ...                 ┘
 
+      [Custom parameters]  (1 row)
+From parameters in the engine.custom dict, with keys ordered alphabetically.
+
 === DEVICE LOCAL ARRAYS ==================================================
 
 The following local arrays are defined:
@@ -945,6 +955,7 @@ class CUDA:
     self.perceptions = None
     self.actions = None
     self.groups = None
+    self.custom = None
     
     # Random number generator
     self.rng = create_xoroshiro128p_states(self.blockDim*self.gridDim, seed=0)
@@ -975,7 +986,7 @@ class CUDA:
     # --------------------------------------------------------------------------
     
     @cuda.jit
-    def CUDA_step(geometry, agents, perceptions, actions, groups, p0, v0, p1, v1, rng):
+    def CUDA_step(geometry, agents, perceptions, actions, groups, custom, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
       '''
@@ -1151,7 +1162,7 @@ class CUDA:
               for k in range(nI): vIn[k] = 0
             
             vIn = perception.perceive(vIn, p, numbers,
-                                      geometry, agents, perceptions,
+                                      geometry, agents, perceptions, custom,
                                       z0, v, a,
                                       z, alpha, visible,
                                       m_nI)
