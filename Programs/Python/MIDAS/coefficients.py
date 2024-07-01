@@ -18,13 +18,15 @@ class Coefficients:
     self.nO = len(self.engine.outputs)
     self.nG = self.engine.groups.N
 
-    grid = self.engine.inputs[self.i].grid
-    self.nCpO = self.nG*grid.nZ  
-    # self.nZ = grid.nZ
-    # self.nR = grid.nR
-    self.nSa = grid.nSa
-    # self.nSb = grid.nSb
-    
+    if self.engine.inputs[self.i].grid is None:
+      self.nCpO = 1
+
+    else:
+      grid = self.engine.inputs[self.i].grid
+      self.nCpO = self.nG*grid.nZ  
+      self.nSa = grid.nSa
+      self.nSb = grid.nSb
+      
     # Number of coefficients
     self.nC = self.nO*self.nCpO
 
@@ -42,6 +44,9 @@ class Coefficients:
     '''
     Export the coeffificients to a weights array
     '''
+
+    if self.engine.inputs[self.i].grid is None:
+      return self.C
 
     W = []
 

@@ -9,7 +9,7 @@ import time
 import numpy as np
 import numba as nb
 from numba import cuda
-from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_normal_float32
+from numba.cuda.random import create_xoroshiro128p_states, init_xoroshiro128p_states, xoroshiro128p_normal_float32
 
 from Animation.Window import Window
 
@@ -320,11 +320,18 @@ class Input:
     param = [self.perception.value, self.normalization.value]
 
     # Grid parameters
-    param.append(self.grid.nR)
-    param.append(self.grid.rmax)
-    if dimension>1: param.append(self.grid.nSa)
-    if dimension>2: param.append(self.grid.nSb)
-    [param.append(x) for x in self.grid.rZ]
+    if self.grid is None:
+      param.append(1)                 # nR
+      param.append(-1)                # rmax
+      if dimension>1: param.append(1) # nSa
+      if dimension>2: param.append(1) # nSb
+
+    else:
+      param.append(self.grid.nR)
+      param.append(self.grid.rmax)
+      if dimension>1: param.append(self.grid.nSa)
+      if dimension>2: param.append(self.grid.nSb)
+      [param.append(x) for x in self.grid.rZ]
 
     # weights
     param.append(self.weights.size)
@@ -1090,6 +1097,9 @@ class CUDA:
 
         # === Computation ======================================================
 
+        # Initialize random generator states
+        init_xoroshiro128p_states(rng, i)
+
         # Agent position and velocity
         z0 = complex(p0[i,0], p0[i,1])
         v = v0[i,0]
@@ -1161,11 +1171,11 @@ class CUDA:
             if pi>0: 
               for k in range(nI): vIn[k] = 0
             
-            vIn = perception.perceive(vIn, p, numbers,
+            vIn, rng = perception.perceive(vIn, p, numbers,
                                       geometry, agents, perceptions, custom,
                                       z0, v, a,
                                       z, alpha, visible,
-                                      m_nI)
+                                      m_nI, rng)
 
             # if i==0:
             #   for k in range(4):
