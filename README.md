@@ -9,6 +9,11 @@ It includes the RIPO and RINNO models.
 conda install numpy scipy numba cudatoolkit matplotlib pyqt imageio[ffmpeg] colorama
 ```
 
+NB: for older cuda toolkit versions:
+```
+conda install cudatoolkit=11.3.1
+```
+
 ```
 pip install screeninfo alive-progress
 ```

@@ -413,7 +413,7 @@ class Field(BaseAnim):
       i = round((0.5 + self.engine.agents.pos[k][0]/self.engine.geom.arena_shape[0])*(self.options['resolution'][0]-1))
       j = round((0.5 + self.engine.agents.pos[k][1]/self.engine.geom.arena_shape[1])*(self.options['resolution'][1]-1))
 
-      Img[j,i] += 1
+      Img[self.options['resolution'][1]-j-1,i] += 1
       
     # Gaussian smooth
     Res = gaussian_filter(Img, (self.options['sigma'], self.options['sigma']))

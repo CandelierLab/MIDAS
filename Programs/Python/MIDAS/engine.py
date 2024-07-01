@@ -2,7 +2,7 @@
 MIDAS Engine
 '''
 
-import os
+import importlib
 import warnings
 import math, cmath
 import time
@@ -413,6 +413,10 @@ class Engine:
     # CUDA variables
     self.agent_drivenity = False
 
+    # --- Customizable CUDA packages
+
+    self.CUDA_perception = None
+
     # --- Time
 
     # Total number of steps
@@ -721,6 +725,8 @@ class Engine:
     # Define parameters (for CUDA)
     self.define_parameters()
 
+    # print(self.param_perceptions)
+
     # CUDA object
     self.cuda = CUDA(self)
 
@@ -957,12 +963,13 @@ class CUDA:
     m_nI = max([x.weights.size for x in self.engine.inputs])
     m_nO = max([len(x) for x in self.engine.groups.outputs])
    
-    # from test_package import test_fun
-    # test = test_fun
+    # Customizable CUDA functions
 
-    # Z = np.array([test_fun],dtype=object)
-    # test = 18
-
+    if self.engine.CUDA_perception is None:
+      import MIDAS.CUDA.perception as perception
+    else:
+      perception = importlib.import_module(self.engine.CUDA_perception)
+            
     # --------------------------------------------------------------------------
     #   The CUDA kernel
     # --------------------------------------------------------------------------
@@ -1072,10 +1079,11 @@ class CUDA:
 
         # === Computation ======================================================
 
-        # Agent polar coordinates
+        # Agent position and velocity
+        z0 = complex(p0[i,0], p0[i,1])
         v = v0[i,0]
         a = v0[i,1]
-
+        
         # Other agents relative coordinates
         if agent_drivenity:
 
@@ -1116,12 +1124,11 @@ class CUDA:
           
           # === Perceptions
 
+          # Inputs local array
+          vIn = cuda.local.array(m_nI, nb.float32)
+
           for pi in range(nP):
-
-            # Reset local arrays
-            vIn = cuda.local.array(m_nI, nb.float32)
-            vW = cuda.local.array(m_nI, nb.float32)
-
+  
             # Perception index
             p = int(groups[gid, pi+3])
 
@@ -1139,9 +1146,19 @@ class CUDA:
             
             # --- Inputs
 
-            vIn = perceive(vIn, numbers, p,
-                     agents, perceptions,
-                      z, alpha, visible, m_nI)
+            # Reset input array
+            if pi>0: 
+              for k in range(nI): vIn[k] = 0
+            
+            vIn = perception.perceive(vIn, p, numbers,
+                                      geometry, agents, perceptions,
+                                      z0, v, a,
+                                      z, alpha, visible,
+                                      m_nI)
+
+            # if i==0:
+            #   for k in range(4):
+            #     print(i, k, vIn[k])
 
             # --- Normalization
 
@@ -1154,7 +1171,6 @@ class CUDA:
               # --- Weighted sum
 
               for k in range(nI):
-
                 outBuffer[oid] += vIn[k]*perceptions[p, int(dim + nR + 3 + nI*oid + k)]
 
           # === Actions
@@ -1216,7 +1232,6 @@ class CUDA:
               a += anoise*xoroshiro128p_normal_float32(rng, i)
 
             # Candidate position and velocity
-            z0 = complex(p0[i,0], p0[i,1])
             z1 = z0 + cmath.rect(v, a)
 
             # Boundary conditions
@@ -1357,70 +1372,6 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
     v, a = cmath.polar(complex(vx, vy))
 
   return (px, py, v, a)
-
-@cuda.jit(device=True)
-def perceive(vIn, numbers, p, agents, perceptions, z, alpha, visible, m_nI):
-
-  dim = numbers[0]
-  nG = numbers[2]
-  nR = numbers[3]
-  nSa = numbers[4]
-  nSb = numbers[5]
-
-  match perceptions[p,0]:
-
-    case Perception.PRESENCE.value | Perception.ORIENTATION.value:
-
-      if perceptions[p,0]==Perception.ORIENTATION.value:
-        Cbuffer = cuda.local.array(m_nI, nb.complex64)
-
-      for j in range(agents.shape[0]):
-
-        # Skip self-perception
-        if not visible[j]: continue
-
-        # Perception rmax
-        rmax = perceptions[p,3]
-        if rmax>0 and abs(z[j])>rmax: continue
-
-        # --- Indices (grid, coefficient)
-
-        # Radial index
-        ri = 0
-        for k in range(nR):
-          ri = k
-          if abs(z[j])<perceptions[p, dim+3+k]: break
-          
-        # Angular index
-        ai = int((cmath.phase(z[j]) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
-        bi = 0 # if dim>2 else 0  # TODO: 3D
-
-        # Grid index
-        ig = (ri*nSa + ai)*nSb + bi
-
-        # Coefficient index
-        ic = int(agents[j,0]*nR*nSa*nSb + ig)
-
-        # --- Inputs
-
-        match perceptions[p,0]:
-
-          case Perception.PRESENCE.value:
-            vIn[ic] += 1
-
-          case Perception.ORIENTATION.value:
-            Cbuffer[ic] += cmath.rect(1., alpha[j])
-
-      # --- Post-process
-
-      match perceptions[p,0]:
-
-        case Perception.ORIENTATION.value:
-
-          for ic in range(nG*nR*nSb*nSa):
-            vIn[ic] = cmath.phase(Cbuffer[ic])
-
-  return vIn
 
 @cuda.jit(device=True)
 def normalize(vIn, ntype, numbers):

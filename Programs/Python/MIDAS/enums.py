@@ -28,25 +28,25 @@ class CoeffSet(IntEnum):
 class Perception(IntEnum):
 
   # Agent-dependent
-  PRESENCE = 100          # Presence (count agents)
-  ORIENTATION = 101       # Average orientation 
-  FIELD_AGENTS = 102      # Field
-  CUSTOM_AGENTS = 103     # Custom input
+  PRESENCE = 0            # Presence (count agents)
+  ORIENTATION = 1         # Average orientation 
+  FIELD_AGENTS = 2        # Field
+  CUSTOM_AGENTS = 3       # Custom input
 
   # Non agent-dependent
-  NOISE = 104             # Gaussian noise
-  WALLS = 105             # Walls
-  FIELD = 106             # Field
-  CUSTOM = 107            # Custom input
+  NOISE = 4               # Gaussian noise
+  WALLS = 5               # Walls
+  FIELD = 6               # Field
+  CUSTOM = 7              # Custom input
 
 # === Normalization ========================================================
 
 class Normalization(IntEnum):
-  NONE = 200              # No normalization
-  SAME_RADIUS = 201       # Normalization over zones with the same radius
-  SAME_SLICE = 202        # Normalization over zones within the same angular slice
-  SAME_GROUP = 203        # Normalization over all zones among the same group
-  ALL = 204               # Normalization over all zones of all groups
+  NONE = 0                # No normalization
+  SAME_RADIUS = 1         # Normalization over zones with the same radius
+  SAME_SLICE = 2          # Normalization over zones within the same angular slice
+  SAME_GROUP = 3          # Normalization over all zones among the same group
+  ALL = 4                 # Normalization over all zones of all groups
 
 # === Actions ==============================================================
 
