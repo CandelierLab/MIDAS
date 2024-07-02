@@ -827,7 +827,7 @@ class Engine:
     '''
 
     # End of simulation
-    nstep = self.window.step if self.animation is not None else self.steps
+    nstep = (self.window.step if self.animation is not None else self.steps)+1
     self.verbose(f'End of simulation @ {nstep:d} steps ({time.time()-self.tref:.2f} s)')
     self.verbose.line()
 
@@ -1097,9 +1097,6 @@ class CUDA:
 
         # === Computation ======================================================
 
-        # Initialize random generator states
-        init_xoroshiro128p_states(rng, i)
-
         # Agent position and velocity
         z0 = complex(p0[i,0], p0[i,1])
         v = v0[i,0]
@@ -1125,6 +1122,13 @@ class CUDA:
               case 2:
                 z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
               case 3: pass
+
+        # Initialize random generators
+        '''
+        It is important to initialize the rng now since custom perceptions may also need random numbers but do not know the agent number.
+        '''
+        vnoise *= xoroshiro128p_normal_float32(rng, 1)
+        anoise *= xoroshiro128p_normal_float32(rng, 1)
 
         # --- RIPO agents ------------------------------------------------------
 
@@ -1242,7 +1246,7 @@ class CUDA:
 
             # Speed noise
             if vnoise:
-              v += vnoise*xoroshiro128p_normal_float32(rng, i)
+              v += vnoise
 
             # Speed limits
             if v < vmin: v = vmin
@@ -1250,7 +1254,7 @@ class CUDA:
 
             # Angular noise
             if anoise:
-              a += anoise*xoroshiro128p_normal_float32(rng, i)
+              a += anoise
 
             # Candidate position and velocity
             z1 = z0 + cmath.rect(v, a)

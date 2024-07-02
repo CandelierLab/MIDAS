@@ -8,7 +8,7 @@ from numba import cuda
 from MIDAS.enums import *
 
 @cuda.jit(device=True)
-def perceive(vIn, p, numbers, geometry, agents, perceptions, custom, z0, v, a, z, alpha, visible, m_nIn rng):
+def perceive(vIn, p, numbers, geometry, agents, perceptions, custom, z0, v, a, z, alpha, visible, m_nI, rng):
 
   dim = numbers[0]
   nG = numbers[2]
@@ -69,4 +69,4 @@ def perceive(vIn, p, numbers, geometry, agents, perceptions, custom, z0, v, a, z
           for ic in range(nG*nR*nSb*nSa):
             vIn[ic] = cmath.phase(Cbuffer[ic])
 
-  return vIn
+  return (vIn, rng)

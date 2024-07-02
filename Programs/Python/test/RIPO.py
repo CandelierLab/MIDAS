@@ -67,7 +67,6 @@ IC = {'position': None,
 
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            rmax = None,
             inputs=[in_presence], outputs=[out_da])
 
 # --- Coefficients
