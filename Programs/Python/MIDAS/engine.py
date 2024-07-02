@@ -1123,13 +1123,6 @@ class CUDA:
                 z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
               case 3: pass
 
-        # Initialize random generators
-        '''
-        It is important to initialize the rng now since custom perceptions may also need random numbers but do not know the agent number.
-        '''
-        vnoise *= xoroshiro128p_normal_float32(rng, 1)
-        anoise *= xoroshiro128p_normal_float32(rng, 1)
-
         # --- RIPO agents ------------------------------------------------------
 
         if atype==Agent.RIPO.value:
@@ -1138,8 +1131,19 @@ class CUDA:
           nO = groups[gid,2]
           nG = groups.shape[0]
                     
-          # Shorthand array
+          # --- Shorthand arrays
+
+          agent = cuda.local.array(5, nb.float32)
           numbers = cuda.local.array(6, nb.int16)
+
+          # Agent
+          agent[0] = i
+          agent[1] = p0[i,0]
+          agent[2] = p0[i,1]
+          agent[3] = v0[i,0]
+          agent[4] = v0[i,1]
+
+          # Numbers
           numbers[0] = dim
           numbers[1] = nO
           numbers[2] = nG
@@ -1175,9 +1179,8 @@ class CUDA:
             if pi>0: 
               for k in range(nI): vIn[k] = 0
             
-            vIn, rng = perception.perceive(vIn, p, numbers,
+            vIn, rng = perception.perceive(vIn, p, numbers, agent,
                                       geometry, agents, perceptions, custom,
-                                      z0, v, a,
                                       z, alpha, visible,
                                       m_nI, rng)
 
@@ -1236,6 +1239,9 @@ class CUDA:
           # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
           # print(v)
 
+        x = xoroshiro128p_normal_float32(rng, i)
+        print(x)
+
         # === Update =======================================================
 
         match dim:
@@ -1246,7 +1252,7 @@ class CUDA:
 
             # Speed noise
             if vnoise:
-              v += vnoise
+              v += vnoise*xoroshiro128p_normal_float32(rng, i)
 
             # Speed limits
             if v < vmin: v = vmin
@@ -1254,7 +1260,7 @@ class CUDA:
 
             # Angular noise
             if anoise:
-              a += anoise
+              a += anoise*xoroshiro128p_normal_float32(rng, i)
 
             # Candidate position and velocity
             z1 = z0 + cmath.rect(v, a)

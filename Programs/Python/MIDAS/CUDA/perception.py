@@ -8,7 +8,7 @@ from numba import cuda
 from MIDAS.enums import *
 
 @cuda.jit(device=True)
-def perceive(vIn, p, numbers, geometry, agents, perceptions, custom, z0, v, a, z, alpha, visible, m_nI, rng):
+def perceive(vIn, p, numbers, agent, geometry, agents, perceptions, custom, z, alpha, visible, m_nI, rng):
 
   dim = numbers[0]
   nG = numbers[2]
