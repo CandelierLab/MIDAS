@@ -1239,9 +1239,6 @@ class CUDA:
           # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
           # print(v)
 
-        x = xoroshiro128p_normal_float32(rng, i)
-        print(x)
-
         # === Update =======================================================
 
         match dim:

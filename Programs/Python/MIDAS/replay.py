@@ -12,7 +12,7 @@ from MIDAS.engine import Geometry,Agents, Groups
 
 class Replay():
 
-  def __init__(self, db_file, style='dark'):
+  def __init__(self, db_file):
 
     # --- Storage
 
@@ -72,13 +72,19 @@ class Replay():
       self.groups.atype.append(res[1])
       self.groups.names.append(res[2])
 
-    # --- Animation --------------------------------------------------------
+    self.animation = None
 
-    # animation_type = Animation.AGENTS
-    animation_type = Animation.FIELD_DENSITY
+  def setup_animation(self, animation_type=Animation.AGENTS, style='dark', custom=None):
+    '''
+    Define animation
+    '''
 
     self.window = Window('MIDAS (replay)', style=style)
     self.window.step_max = self.duration-1
+
+    # Customization
+    if custom is not None:
+      animation_type = Animation.CUSTOM
 
     match self.dimension:
       case 1:
@@ -91,6 +97,9 @@ class Replay():
 
           case Animation.FIELD_DENSITY:
             self.animation = MIDAS.animation.Field(self)
+
+          case Animation.CUSTOM:
+            self.animation = custom(self)
 
       case 3:
         pass
@@ -107,9 +116,9 @@ class Replay():
     '''
 
     match self.dimension:
-      case 1: sql = f'SELECT x, r FROM Kinematics WHERE step={i}'
-      case 2: sql = f'SELECT x, y, r, a FROM Kinematics WHERE step={i}'
-      case 3: sql = f'SELECT x, y, z, r, a, b FROM Kinematics WHERE step={i}'
+      case 1: sql = f'SELECT x, v FROM Kinematics WHERE step={i}'
+      case 2: sql = f'SELECT x, y, v, a FROM Kinematics WHERE step={i}'
+      case 3: sql = f'SELECT x, y, z, v, a, b FROM Kinematics WHERE step={i}'
 
     res = np.array(self.storage.db_curs.execute(sql).fetchall())
 
@@ -128,6 +137,10 @@ class Replay():
     '''
     Run replay
     '''
+
+    # Define animation
+    if self.animation is None:
+      self.setup_animation()
 
     self.animation.initialize()
     self.window.show()

@@ -1,4 +1,3 @@
-import re
 from screeninfo import get_monitors
 from scipy.ndimage import gaussian_filter
 
@@ -9,6 +8,9 @@ from Animation.Colormap import *
 class BaseAnim(Animation_2d):
 
   def __init__(self, engine):
+    '''
+    Constructor
+    '''
 
     # Define engine
     self.engine = engine
@@ -87,6 +89,28 @@ class BaseAnim(Animation_2d):
         else:
           self.add(line, 'boundary_top', points = pts_top, color = 'white', thickness=thickness)
           self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white', thickness=thickness)
+
+  def update(self, t):
+    '''
+    Update method
+    '''
+
+    # Update timer display
+    super().update(t)
+
+    # Compute step
+    self.engine.step(t.step)
+
+    # Update display
+    self.update_display(t.step)
+
+  def update_display(self, **kwargs):
+    '''
+    Update display (to overload)
+    '''
+
+    pass
+
 
 ############################################################################
 ############################################################################
@@ -296,29 +320,6 @@ class Agents_2d(BaseAnim):
   # ------------------------------------------------------------------------
   #   Updates
   # ------------------------------------------------------------------------
-   
-  def update(self, t):
-    
-    # Update timer display
-    super().update(t)
-
-    # Compute step
-    self.engine.step(t.step)
-
-    # Update display
-    self.update_display()
-
-    # Update traces
-    # if self.trace_duration is not None:
-    #   for i, Ag in enumerate(self.engine.agents.list):
-    #     Ag.trace = np.roll(Ag.trace, 1, axis=0)
-    #     Ag.trace[0,0] = Ag.x
-    #     Ag.trace[0,1] = Ag.y
-
-    #     # Periodic boundary conditions
-    #     Ag.trace = np.unwrap(Ag.trace, period=1, axis=0)
-    #     Ag.trace[Ag.trace<0] = 0
-    #     Ag.trace[Ag.trace>1] = 1
         
   def update_display(self):
     '''
@@ -391,18 +392,7 @@ class Field(BaseAnim):
 
     # Initial display
     self.update_display(0)
-
-  def update(self, t):
-
-    # Update timer display
-    super().update(t)
-
-    # Compute step
-    self.engine.step(t.step)
-
-    # Update display
-    self.update_display(t.step)
-    
+   
   def update_display(self, t):
 
     # Raw density

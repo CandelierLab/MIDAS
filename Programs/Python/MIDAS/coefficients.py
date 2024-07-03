@@ -32,13 +32,15 @@ class Coefficients:
 
     # --- Coefficients -----------------------------------------------------
 
-    if isinstance(C, CoeffSet):
-      match C:
+    match type(C).__name__:
+      case 'CoeffSet':
+        match C:
 
-        case CoeffSet.IGNORE: self.C = np.zeros(self.nC)
+          case CoeffSet.IGNORE: self.C = np.zeros(self.nC)
 
-    else:
-      self.C = np.array(C)
+      case 'ndarray': self.C = C
+      case 'list' | 'tuple': self.C = np.array(C)
+      case _: self.C = np.array([C])
 
   def to_weights(self):
     '''

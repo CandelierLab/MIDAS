@@ -15,6 +15,7 @@ def perceive(vIn, p, numbers, agent, geometry, agents, perceptions, custom, z, a
   nR = numbers[3]
   nSa = numbers[4]
   nSb = numbers[5]
+  rmax = perceptions[p,3]
 
   match perceptions[p,0]:
 
@@ -29,8 +30,7 @@ def perceive(vIn, p, numbers, agent, geometry, agents, perceptions, custom, z, a
         if not visible[j]: continue
 
         # Perception rmax
-        rmax = perceptions[p,3]
-        if rmax>0 and abs(z[j])>rmax: continue
+        if rmax>=0 and abs(z[j])>rmax: continue
 
         # --- Indices (grid, coefficient)
 

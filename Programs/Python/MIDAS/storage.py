@@ -136,7 +136,7 @@ class Storage():
       x FLOAT,
       {'y FLOAT,' if self.dimension>1 else ''}
       {'z FLOAT,' if self.dimension>2 else ''}
-      r FLOAT,
+      v FLOAT,
       {'a FLOAT,' if self.dimension>1 else ''}
       {'b FLOAT,' if self.dimension>2 else ''}
       PRIMARY KEY (step, id));''')

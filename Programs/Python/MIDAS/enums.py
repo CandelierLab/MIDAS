@@ -8,18 +8,21 @@ import numpy as np
 # === Arena geometries =====================================================
 
 class Arena(IntEnum):
+  
   CIRCULAR = 0
   RECTANGULAR = 1
 
 # === Agent types ==========================================================
 
 class Agent(IntEnum):
+
   FIXED = 0
   RIPO = 1
 
 # === Coefficients sets ====================================================
 
 class CoeffSet(IntEnum):
+
   IGNORE = 0
   #  PRESENCE_ATTRACTION = 1     To implement
 
@@ -42,6 +45,7 @@ class Perception(IntEnum):
 # === Normalization ========================================================
 
 class Normalization(IntEnum):
+
   NONE = 0                # No normalization
   SAME_RADIUS = 1         # Normalization over zones with the same radius
   SAME_SLICE = 2          # Normalization over zones within the same angular slice
@@ -51,6 +55,7 @@ class Normalization(IntEnum):
 # === Actions ==============================================================
 
 class Action(IntEnum):
+
   SPEED_MODULATION = 0            # Speed modulation
   REORIENTATION = 1               # ┐ Reorientation (transverse - for easy use in 2D)
   REORIENTATION_TRANSVERSE = 1    # │ Reorientation (transverse plane)
@@ -63,6 +68,7 @@ class Action(IntEnum):
 # === Activation fuctions ==================================================
 
 class Activation(IntEnum):
+
   IDENTITY = 0            # No activation
   HSM_POSITIVE = 1        # Half-softmax with output in [0,1]
   HSM_CENTERED = 2        # Half-softmax with output in [-1,1]
@@ -87,6 +93,7 @@ class Default(Enum):
 # === Verbose level ========================================================
 
 class Verbose(IntEnum):
+
   NONE = 0
   NORMAL = 1
   HIGH = 2
@@ -94,5 +101,8 @@ class Verbose(IntEnum):
 # === Animation type ========================================================
 
 class Animation(IntEnum):
+
   AGENTS = 0
   FIELD_DENSITY = 1
+
+  CUSTOM = 100
