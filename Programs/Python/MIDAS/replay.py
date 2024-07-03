@@ -106,6 +106,9 @@ class Replay():
     
     self.window.add(self.animation)
 
+    # Step limit
+    self.window.step_max = self.storage.db_curs.execute('SELECT max(step) FROM Kinematics').fetchone()[0]
+
     # Backward animation
     self.window.allow_backward = True
     self.window.allow_negative_time = False
@@ -133,7 +136,7 @@ class Replay():
         self.agents.pos = res[:,0:3]
         self.agents.vel = res[:,3:6]
 
-  def run(self):
+  def run(self, **kwargs):
     '''
     Run replay
     '''
@@ -142,5 +145,5 @@ class Replay():
     if self.animation is None:
       self.setup_animation()
 
-    self.animation.initialize()
+    self.animation.initialize(**kwargs)
     self.window.show()

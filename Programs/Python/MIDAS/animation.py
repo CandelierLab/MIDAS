@@ -379,7 +379,7 @@ class Field(BaseAnim):
     self.options['sigma'] = 5
     self.options['range'] = [0, 1]
     
-  def initialize(self):
+  def initialize(self, start=0):
     
     # Boundaries
     self.set_boundaries(rescale=True)
@@ -391,7 +391,8 @@ class Field(BaseAnim):
     )
 
     # Initial display
-    self.update_display(0)
+    self.window.step = start
+    self.update_display(start)
    
   def update_display(self, t):
 
