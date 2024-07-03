@@ -115,7 +115,7 @@ class Replay():
 
   def step(self, i):
     '''
-    Fetch kinematic parameters at every step of the siimulation
+    Fetch kinematic parameters at every step of the simulation
     '''
 
     match self.dimension:
