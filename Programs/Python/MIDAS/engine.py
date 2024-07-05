@@ -39,7 +39,7 @@ class Geometry:
 
     # Arena shape ('circular' or 'rectangular')
     self.arena = kwargs['arena'] if 'arena' in kwargs else Arena.RECTANGULAR
-    self.arena_shape =  kwargs['shape'] if 'shape' in kwargs else [1]*self.dimension
+    self.arena_shape =  np.array(kwargs['shape'] if 'shape' in kwargs else [1]*self.dimension)
 
     # --- Boundary conditions
 
@@ -738,8 +738,6 @@ class Engine:
     # Define parameters (for CUDA)
     self.define_parameters()
 
-    # print(self.param_perceptions)
-
     # CUDA object
     self.cuda = CUDA(self)
 
@@ -763,18 +761,17 @@ class Engine:
 
     if self.animation is None:
 
-      from alive_progress import alive_bar
+      from alive_progress import alive_it
 
       '''
       It is important that steps start at 1, step=0 being the initial state
       '''
 
-      with alive_bar(self.steps) as bar:
-        
-        bar.title = self.verbose.get_caller(1)
-        for step in range(self.steps):
-          if step: self.step(step)
-          bar()
+
+      bar = alive_it(range(self.steps))
+      bar.title = self.verbose.get_caller(1)
+      for step in bar:
+        if step: self.step(step)
 
       self.end()
 
@@ -1186,12 +1183,15 @@ class CUDA:
 
             # if i==0:
             #   for k in range(4):
-            #     print(i, k, vIn[k])
+            #     print(pi, k, vIn[k])
 
             # --- Normalization
 
             vIn = normalize(vIn, perceptions[p,1], numbers)
 
+            # if i==0 and pi==2:
+            #   print(vIn[0], vIn[1], vIn[2], vIn[3], abs(z0))
+              
             # === Outputs
 
             for oid in range(nO):
@@ -1341,16 +1341,18 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
       phi = a + math.asin((z0.imag*math.cos(a) - z0.real*math.sin(a))/arena_X)
       zc = cmath.rect(arena_X, phi)
 
-      # Position        
+      # Position
       z1 = zc + (v-abs(zc-z0))*cmath.exp(1j*(cmath.pi + 2*phi - a))
 
       # Final velocity
       a += cmath.pi-2*(a-phi)
 
+    # Sanity check
+    if abs(z1) > arena_X: z1 = z1/abs(z1)*(arena_X-1e-6)
+
     # Final position
     px = z1.real
     py = z1.imag
-
 
   elif arena==Arena.RECTANGULAR.value:
     '''

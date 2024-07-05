@@ -25,37 +25,24 @@ class BaseAnim(Animation_2d):
     # Options
     self.options = {}
 
-  def set_boundaries(self, rescale=False):
+  def set_boundaries(self):
     '''
     Set the boundaries
     '''
 
-    # Arena bounds
-    if rescale:
-      bounds_x = np.array([0, 1])
-      bounds_y = np.array([0, 1])
-    else:
-      bounds_x = np.array([-1, 1])*self.engine.geom.arena_shape[0]/2
-      bounds_y = np.array([-1, 1])*self.engine.geom.arena_shape[1]/2
+    bounds_x = np.array([-1, 1])*self.engine.geom.arena_shape[0]/2
+    bounds_y = np.array([-1, 1])*self.engine.geom.arena_shape[1]/2
 
     thickness = int(get_monitors()[0].width/1920)
 
     match self.engine.geom.arena:
 
       case Arena.CIRCULAR:
-        
-        if self.engine.geom.periodic:
-          self.add(circle, 'boundary', 
-                   position = [0,0],
-                   radius = self.engine.geom.arena_shape[0]/2,
-                   colors = (None, 'grey'),
-                   linestyle = '--',
-                  thickness=thickness)
-        else:
-          self.add(circle, 'boundary', 
-                   position = [0,0],
-                   radius = self.engine.geom.arena_shape[0]/2,
-                   colors = (None, 'white'),
+
+        self.add(circle, 'boundary', 
+                  position = [(bounds_x[0]+bounds_x[1])/2, (bounds_y[0]+bounds_y[1])/2],
+                  radius = (bounds_x[1]-bounds_x[0])/2,
+                  colors = (None, 'white'),
                   thickness=thickness)
 
       case Arena.RECTANGULAR:
@@ -64,15 +51,6 @@ class BaseAnim(Animation_2d):
         pts_right = [[bounds_x[1], bounds_y[0]], [bounds_x[1], bounds_y[1]]]
         pts_top = [[bounds_x[0], bounds_y[1]], [bounds_x[1], bounds_y[1]]]
         pts_bottom = [[bounds_x[0], bounds_y[0]], [bounds_x[1], bounds_y[0]]]
-
-        # pts_left = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
-        #             [-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
-        # pts_right = [[self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
-        #              [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
-        # pts_top = [[-self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2],
-        #             [self.engine.geom.arena_shape[0]/2, self.engine.geom.arena_shape[1]/2]]
-        # pts_bottom = [[-self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2],
-        #             [self.engine.geom.arena_shape[0]/2, -self.engine.geom.arena_shape[1]/2]]
 
         # X-periodicity
         if self.engine.geom.periodic[0]:
@@ -102,7 +80,7 @@ class BaseAnim(Animation_2d):
     self.engine.step(t.step)
 
     # Update display
-    self.update_display(t.step)
+    self.update_display(t=t)
 
   def update_display(self, **kwargs):
     '''
@@ -321,7 +299,7 @@ class Agents_2d(BaseAnim):
   #   Updates
   # ------------------------------------------------------------------------
         
-  def update_display(self):
+  def update_display(self, **kwargs):
     '''
     Update display
     '''
@@ -382,19 +360,20 @@ class Field(BaseAnim):
   def initialize(self, start=0):
     
     # Boundaries
-    self.set_boundaries(rescale=True)
+    self.set_boundaries()
 
     # Image container
     self.add(image, 'background',
-      cmap = Colormap('turbo', range=self.options['range']),
-      zvalue = -1,
-    )
+            position = -self.engine.geom.arena_shape/2,
+            cmap = Colormap('turbo', range=self.options['range']),
+            zvalue = -1,
+            )
 
     # Initial display
     self.window.step = start
-    self.update_display(start)
+    self.update_display(step=start)
    
-  def update_display(self, t):
+  def update_display(self, **kwargs):
 
     # Raw density
     Img = np.zeros((self.options['resolution'][1], self.options['resolution'][0]))
