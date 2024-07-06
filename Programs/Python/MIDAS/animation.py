@@ -51,6 +51,7 @@ class Animation(Animation_2d):
     self.field_options['resolution'] = [500, 500]
     self.field_options['sigma'] = 5
     self.field_options['range'] = [0, 1]
+    self.field_options['cmap'] = 'turbo'
 
     # Misc properties
     self.is_running = True
@@ -192,7 +193,7 @@ class Animation(Animation_2d):
       # Image container
       self.add(image, 'field',
               position = -self.engine.geom.arena_shape/2,
-              cmap = Colormap('turbo', range=self.field_options['range']),
+              cmap = Colormap(self.field_options['cmap'], range=self.field_options['range']),
               zvalue = -1,
               )
       
@@ -397,7 +398,7 @@ class Animation(Animation_2d):
 
       case _:
 
-        pass
+        self.item['field'].image = self.engine.fields.values[self.field]
 
   def stop(self):
     '''

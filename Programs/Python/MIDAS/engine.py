@@ -389,14 +389,14 @@ class Fields:
     self.N = 0
 
     # Fields
-    self.field = []
+    self.values = []
 
   def add(self, field):
     '''
     Add a field
     '''
 
-    self.field.append(field)
+    self.values.append(field)
 
     # Update number of fields
     self.N += 1
@@ -405,11 +405,11 @@ class Fields:
 
     match self.N:
       case 0: F = []
-      case 1: F = self.field[0]
+      case 1: F = self.values[0]
       case _:
-        F = self.field[0]
+        F = self.values[0]
         for i in range(self.N):
-          F = np.concatenate(F, self.field[i], axis=2)
+          F = np.concatenate(F, self.values[i], axis=2)
 
     return F
 
@@ -647,6 +647,7 @@ class Engine:
     '''
 
     self.fields.add(field, **kwargs)
+    return self.fields.N-1
 
   # ------------------------------------------------------------------------
   #   Setups

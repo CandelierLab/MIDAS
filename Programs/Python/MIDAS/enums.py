@@ -109,6 +109,6 @@ class AnimAgents(IntEnum):
 
 class AnimField(IntEnum):
 
-  NONE = 0
-  DENSITY = 1
-  POLARITY = 2
+  NONE = -1
+  DENSITY = -2
+  POLARITY = -3
