@@ -1,5 +1,59 @@
 from Animation.Animation_2d import *
 from Animation.Colormap import *
+from MIDAS.enums import *
+
+class InformationBase:
+
+  def __init__(self, engine):
+
+    # Definitions
+    self.engine = engine
+    self.qanim = self.engine.window.information
+
+    self.display()
+    
+  # ========================================================================
+  def display(self):
+    '''
+    Display information. 
+    To overload for customization
+    '''
+
+    self.display_standard()
+
+  # ========================================================================
+  def display_standard(self):
+    '''
+    Display standard MIDAS information
+    '''
+
+    # Compact mode
+    self.qanim.stack['vpadding'] = -0.01
+
+    # --- Arena
+
+    s = 'Arena '
+    match self.engine.geom.arena:
+      case Arena.RECTANGULAR:
+        s += f'{self.engine.geom.arena_shape}'
+      case Arena.CIRCULAR:
+        s += f'D={self.engine.geom.arena_shape[0]}'
+
+    self.qanim.add(text, 'arena', stack = True, string = s)
+
+    # --- Groups
+
+    # for gid in range(self.engine.groups.N):
+
+    #   # Group name
+    #   s = f'Group [{self.engine.groups.names[gid]}]'
+
+    #   # Append group infos
+    #   self.qanim.add(text, f'group_{gid}', stack = True, string = s)
+
+# ##########################################################################
+#                             COMPOSITES
+# ##########################################################################
 
 class piechart(composite):
   """

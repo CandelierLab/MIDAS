@@ -17,6 +17,7 @@ from MIDAS.coefficients import Coefficients
 from MIDAS.storage import Storage
 from MIDAS.enums import *
 import MIDAS.animation
+from MIDAS.information import InformationBase
 import MIDAS.verbose
 
 # === GEOMETRY =============================================================
@@ -405,6 +406,7 @@ class Engine:
     # Animation
     self.window = None
     self.animation = None
+    self.information = None
 
     # --- GPU
 
@@ -776,6 +778,10 @@ class Engine:
       self.end()
 
     else:
+
+      # Default information
+      if self.information is None:
+        self.information = InformationBase(self)
 
       # Use the animation clock
       self.animation.initialize()

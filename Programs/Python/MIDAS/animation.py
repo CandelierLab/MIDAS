@@ -5,7 +5,8 @@ from MIDAS.enums import *
 from Animation.Animation_2d import *
 from Animation.Colormap import *
 
-class BaseAnim(Animation_2d):
+
+class AnimationBase(Animation_2d):
 
   def __init__(self, engine):
     '''
@@ -22,8 +23,17 @@ class BaseAnim(Animation_2d):
                                  np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
                      disp_boundaries=False)
     
-    # Options
+    # Animation options
     self.options = {}
+
+  # ------------------------------------------------------------------------
+  #   Initialization
+  # ------------------------------------------------------------------------
+
+  def initialize(self):
+    
+    # Set boundaries
+    self.set_boundaries()
 
   def set_boundaries(self):
     '''
@@ -68,6 +78,60 @@ class BaseAnim(Animation_2d):
           self.add(line, 'boundary_top', points = pts_top, color = 'white', thickness=thickness)
           self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white', thickness=thickness)
 
+  # ------------------------------------------------------------------------
+  #   Informations
+  # ------------------------------------------------------------------------
+
+  def add_info(self, agent=None):
+
+    # Define agent
+    if agent is None:
+      agent = self.info_agent
+
+    # Get information
+    info = agent.information()
+
+    self.engine.window.information.add(text, 'info',
+      stack = True,
+      string = info,
+      color = 'white',
+      fontsize = 10,
+    )
+
+    # match self.engine.animation.options[self.name]['dynamic_cmap']:
+  
+    #   case 'speed':
+    #     self.engine.animation.colormap.range = [self.v_min, self.v_max]
+    #     self.engine.animation.add_insight_colorbar()
+
+    #   case 'density':
+    #     self.engine.animation.colormap.range = [1, 20]
+    #     self.engine.animation.add_insight_colorbar()
+
+  def add_info_weights(self, agent=None):
+    '''
+    Information over weights displayed in a piechart style
+    '''
+    
+    if agent is None:
+      agent = self.info_agent
+
+    agent.add_info_weights()
+    agent.update_info_weights()
+
+  def add_info_colorbar(self):
+
+    pass
+    # self.add(colorbar, 'Cb',
+    #   insight = True,
+    #   height = 'fill',
+    #   nticks = 2
+    # )
+
+  # ------------------------------------------------------------------------
+  #   Updates
+  # ------------------------------------------------------------------------
+
   def update(self, t):
     '''
     Update method
@@ -89,7 +153,6 @@ class BaseAnim(Animation_2d):
 
     pass
 
-
 ############################################################################
 ############################################################################
 # #                                                                      # #
@@ -100,7 +163,7 @@ class BaseAnim(Animation_2d):
 ############################################################################
 ############################################################################
 
-class Agents_2d(BaseAnim):
+class Agents_2d(AnimationBase):
     
   # ------------------------------------------------------------------------
   #   Constructor
@@ -135,10 +198,9 @@ class Agents_2d(BaseAnim):
     # Define padding
     padding = np.max([self.options[k]['size'] for k in self.options])    
     self.setPadding(padding)
-
-    # === Boundaries =======================================================
-
-    self.set_boundaries()
+    
+    # Base initialization
+    super().initialize()
 
     # === Agents ===========================================================
 
@@ -228,74 +290,6 @@ class Agents_2d(BaseAnim):
         #   )
 
   # ------------------------------------------------------------------------
-  #   Informations
-  # ------------------------------------------------------------------------
-   
-  def time_str(self):
-
-    pass
-    # s = '<p>step {:06d}</p>'.format(self.step)
-
-    # # Grey zeros
-    # s = re.sub(r'( )([0]+)', r'\1<span style="color:grey;">\2</span>', s)
-
-    # print('ok')
-
-    # # Agents that are not fixed
-    # s += '<p>{:d} agents</p>'.format(np.count_nonzero(self.engine.agents.atype))
-
-    # if not self.engine.periodic_boundary_condition:
-    #   s += '<p style="font-size:20px;">Bouncing boundary condition</p>'
-
-    # return s
-
-  def add_info(self, agent=None):
-
-    # Define agent
-    if agent is None:
-      agent = self.info_agent
-
-    # Get information
-    info = agent.information()
-
-    self.engine.window.information.add(text, 'info',
-      stack = True,
-      string = info,
-      color = 'white',
-      fontsize = 10,
-    )
-
-    # match self.engine.animation.options[self.name]['dynamic_cmap']:
-  
-    #   case 'speed':
-    #     self.engine.animation.colormap.range = [self.v_min, self.v_max]
-    #     self.engine.animation.add_insight_colorbar()
-
-    #   case 'density':
-    #     self.engine.animation.colormap.range = [1, 20]
-    #     self.engine.animation.add_insight_colorbar()
-
-  def add_info_weights(self, agent=None):
-    '''
-    Information over weights displayed in a piechart style
-    '''
-    
-    if agent is None:
-      agent = self.info_agent
-
-    agent.add_info_weights()
-    agent.update_info_weights()
-
-  def add_info_colorbar(self):
-
-    pass
-    # self.add(colorbar, 'Cb',
-    #   insight = True,
-    #   height = 'fill',
-    #   nticks = 2
-    # )
-
-  # ------------------------------------------------------------------------
   #   Updates
   # ------------------------------------------------------------------------
         
@@ -347,7 +341,7 @@ class Agents_2d(BaseAnim):
 ############################################################################
 ############################################################################
 
-class Field(BaseAnim):
+class Field(AnimationBase):
 
   def __init__(self, engine):
 
@@ -359,8 +353,8 @@ class Field(BaseAnim):
     
   def initialize(self, start=0):
     
-    # Boundaries
-    self.set_boundaries()
+    # Base initialization
+    super().initialize()
 
     # Image container
     self.add(image, 'background',
