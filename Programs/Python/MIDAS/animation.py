@@ -398,7 +398,7 @@ class Animation(Animation_2d):
 
       case _:
 
-        self.item['field'].image = self.engine.fields.values[self.field]
+        self.item['field'].image = self.engine.fields.values[:,:,self.field]
 
   def stop(self):
     '''

@@ -389,29 +389,23 @@ class Fields:
     self.N = 0
 
     # Fields
-    self.values = []
+    self.values = None
 
   def add(self, field):
     '''
     Add a field
     '''
 
-    self.values.append(field)
+    # --- Merging procedure
+
+    if self.values is None:
+      self.values = np.array(field)[:,:,None]
+
+    else:
+      self.values = np.concatenate(self.values, field, axis=2)
 
     # Update number of fields
-    self.N += 1
-
-  def merge(self):
-
-    match self.N:
-      case 0: F = []
-      case 1: F = self.values[0]
-      case _:
-        F = self.values[0]
-        for i in range(self.N):
-          F = np.concatenate(F, self.values[i], axis=2)
-
-    return F
+    self.N = self.values.shape[2]
 
 # === ENGINE ===============================================================
 
@@ -466,6 +460,7 @@ class Engine:
     # --- Customizable CUDA packages
 
     self.CUDA_perception = None
+    self.CUDA_field_update = None
 
     # --- Time
 
@@ -784,6 +779,7 @@ class Engine:
     self.cuda.perceptions = cuda.to_device(self.param_perceptions.astype(np.float32))
     self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
     self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
+    self.cuda.fields = cuda.to_device(self.fields.values.astype(np.float32))
     self.cuda.custom = cuda.to_device(self.param_custom.astype(np.float32))
 
     # Double buffers
@@ -826,27 +822,37 @@ class Engine:
     if i % 2:
       
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
-        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.custom,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.fields, self.cuda.custom,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.rng)
       
-      cuda.synchronize()
-      
+      # Get back position and velocities
+      cuda.synchronize()      
       self.agents.pos = self.cuda.p1.copy_to_host()
       self.agents.vel = self.cuda.v1.copy_to_host()
+
+      # Field update
+      if self.fields.N:        
+        self.cuda.update_fields[1,1](self.cuda.fields, self.cuda.p1, self.cuda.v1)
+        self.fields.values = self.cuda.fields.copy_to_host()
 
     else:
 
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
-        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.custom,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.fields, self.cuda.custom,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.rng)
       
+      # Get back position and velocities
       cuda.synchronize()
-      
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
+      # Field update
+      if self.fields.N:
+        self.cuda.update_fields[1,1](self.cuda.fields, self.cuda.p0, self.cuda.v0)
+        self.fields.values = self.cuda.fields.copy_to_host()
+
     # --- DB Storage
 
     if self.storage is not None:
@@ -998,6 +1004,7 @@ class CUDA:
     self.perceptions = None
     self.actions = None
     self.groups = None
+    self.fields = None
     self.custom = None
     
     # Random number generator
@@ -1023,13 +1030,18 @@ class CUDA:
       import MIDAS.CUDA.perception as perception
     else:
       perception = importlib.import_module(self.engine.CUDA_perception)
+
+    if self.engine.CUDA_field_update is None:
+      import MIDAS.CUDA.field as field
+    else:
+      field = importlib.import_module(self.engine.CUDA_field_update)
             
     # --------------------------------------------------------------------------
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
     @cuda.jit
-    def CUDA_step(geometry, agents, perceptions, actions, groups, custom, p0, v0, p1, v1, rng):
+    def CUDA_step(geometry, agents, perceptions, actions, groups, fields, custom, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
       '''
@@ -1306,8 +1318,9 @@ class CUDA:
                                                           arena_X, arena_Y,
                                                           periodic_X, periodic_Y)
 
-    # Store CUDA kernel
+    # Store CUDA kernels
     self.step = CUDA_step
+    self.update_fields = field.update
 
 # --------------------------------------------------------------------------
 #   Boundary conditions
