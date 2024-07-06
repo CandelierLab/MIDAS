@@ -48,11 +48,14 @@ class Replay():
         arena_shape = [param['arena_X'], param['arena_Y'], param['arena_Z']]
         periodic = [param['periodic_X'], param['periodic_Y'], param['periodic_Z']]
     
+    if param['arena']==Arena.CIRCULAR:
+      periodic = periodic[0]
+
     self.geom = Geometry(param['dimension'],
                          arena = param['arena'],
                          shape = arena_shape,
                          periodic = periodic)
-
+    
     # --- Agents -----------------------------------------------------------
 
     # Definitons
@@ -74,36 +77,13 @@ class Replay():
 
     self.animation = None
 
-  def setup_animation(self, animation_type=Animation.AGENTS, style='dark', custom=None):
+  def setup_animation(self, style='dark', **kwargs):
     '''
     Define animation
     '''
 
     self.window = Window('MIDAS (replay)', style=style)
-    self.window.step_max = self.duration-1
-
-    # Customization
-    if custom is not None:
-      animation_type = Animation.CUSTOM
-
-    match self.dimension:
-      case 1:
-        pass
-      case 2:
-        match animation_type:
-
-          case Animation.AGENTS:
-            self.animation = MIDAS.animation.Agents_2d(self)
-
-          case Animation.FIELD_DENSITY:
-            self.animation = MIDAS.animation.Field(self)
-
-          case Animation.CUSTOM:
-            self.animation = custom(self)
-
-      case 3:
-        pass
-    
+    self.animation = MIDAS.animation.Animation(self, **kwargs)
     self.window.add(self.animation)
 
     # Step limit

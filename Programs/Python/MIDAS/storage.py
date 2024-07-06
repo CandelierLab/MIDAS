@@ -85,15 +85,15 @@ class Storage():
     self.db_curs.execute(sql_param, ('db_version', self.version))
     self.db_curs.execute(sql_param, ('dimension', self.dimension))
     self.db_curs.execute(sql_param, ('arena', engine.geom.arena))
-    self.db_curs.execute(sql_param, ('arena_X', engine.geom.arena_shape[0]))
+    self.db_curs.execute(sql_param, ('arena_X', float(engine.geom.arena_shape[0])))
     self.db_curs.execute(sql_param, ('periodic_X', periodic[0]))
 
     if self.dimension>1:
-      self.db_curs.execute(sql_param, ('arena_Y', engine.geom.arena_shape[1]))
+      self.db_curs.execute(sql_param, ('arena_Y', float(engine.geom.arena_shape[1])))
       self.db_curs.execute(sql_param, ('periodic_Y', periodic[1]))
 
     if self.dimension>2:
-      self.db_curs.execute(sql_param, ('arena_Z', engine.geom.arena_shape[2]))
+      self.db_curs.execute(sql_param, ('arena_Z', float(engine.geom.arena_shape[2])))
       self.db_curs.execute(sql_param, ('periodic_Z', periodic[2]))
 
     if engine.steps is not None:

@@ -88,7 +88,6 @@ E.animation.trace_duration = 10
 # E.animation.group_options['agents']['cmap'] = 'hsv'
 E.animation.field_options['range'] = [0, 1]
 
-
 # === Simulation ===========================================================
 
 # E.window.autoplay = False

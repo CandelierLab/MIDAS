@@ -352,17 +352,19 @@ class Animation(Animation_2d):
           trace[0,1] = self.engine.agents.pos[i,1]
 
           # Periodic boundary conditions
-          if self.engine.geom.periodic[0]:
-            trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geom.arena_shape[0], axis=0)
-            I = np.logical_or(trace[:,0]<-self.engine.geom.arena_shape[0]/2, trace[:,0]>self.engine.geom.arena_shape[0]/2)
-            trace[I,0] = np.nan
-            trace[I,1] = np.nan
+          if self.engine.geom.arena==Arena.RECTANGULAR:
+          
+            if self.engine.geom.periodic[0]:
+              trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geom.arena_shape[0], axis=0)
+              I = np.logical_or(trace[:,0]<-self.engine.geom.arena_shape[0]/2, trace[:,0]>self.engine.geom.arena_shape[0]/2)
+              trace[I,0] = np.nan
+              trace[I,1] = np.nan
 
-          if self.engine.geom.periodic[1]:
-            trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geom.arena_shape[1], axis=0)
-            I = np.logical_or(trace[:,1]<-self.engine.geom.arena_shape[1]/2, trace[:,1]>self.engine.geom.arena_shape[1]/2)
-            trace[I,0] = np.nan
-            trace[I,1] = np.nan
+            if self.engine.geom.periodic[1]:
+              trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geom.arena_shape[1], axis=0)
+              I = np.logical_or(trace[:,1]<-self.engine.geom.arena_shape[1]/2, trace[:,1]>self.engine.geom.arena_shape[1]/2)
+              trace[I,0] = np.nan
+              trace[I,1] = np.nan
             
           # Update trace
           self.item[f'{i:d}_trace'].points = trace
