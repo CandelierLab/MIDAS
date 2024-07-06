@@ -98,11 +98,17 @@ class Verbose(IntEnum):
   NORMAL = 1
   HIGH = 2
 
-# === Animation type ========================================================
+# === Animations ===========================================================
 
-class Animation(IntEnum):
+class AnimAgents(IntEnum):
 
-  AGENTS = 0
-  FIELD_DENSITY = 1
+  NONE = 0
+  ALL = 1
+  SUBSET_10 = 2
+  SUBSET_100 = 3
 
-  CUSTOM = 100
+class AnimField(IntEnum):
+
+  NONE = 0
+  DENSITY = 1
+  POLARITY = 2

@@ -83,20 +83,11 @@ E.set_weights(in_presence, np.array([1, 1, 1, 1]))
 
 # === Visualization ========================================================
 
-# E.setup_animation()
-# E.animation.options['agents']['cmap'] = 'hsv'
+E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
+E.animation.trace_duration = 10
+# E.animation.group_options['agents']['cmap'] = 'hsv'
+E.animation.field_options['range'] = [0, 1]
 
-E.setup_animation(Animation.FIELD_DENSITY)
-E.animation.options['sigma'] = 5
-E.animation.options['range'] = [0, 1]
-
-# --- Information
-
-# E.animation.add_info_weights()
-# E.animation.add_info()
-
-# --- Traces
-# E.animation.trace_duration = 10
 
 # === Simulation ===========================================================
 

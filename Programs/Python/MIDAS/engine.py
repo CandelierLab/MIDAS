@@ -374,6 +374,45 @@ class Output:
    
     return [self.action.value, self.activation.value]
 
+# === FIELDS ===============================================================
+
+class Fields:
+  '''
+  Fields
+  '''
+
+  def __init__(self, dimension):
+
+    self.dimension = dimension
+    
+    # Number of fields
+    self.N = 0
+
+    # Fields
+    self.field = []
+
+  def add(self, field):
+    '''
+    Add a field
+    '''
+
+    self.field.append(field)
+
+    # Update number of fields
+    self.N += 1
+
+  def merge(self):
+
+    match self.N:
+      case 0: F = []
+      case 1: F = self.field[0]
+      case _:
+        F = self.field[0]
+        for i in range(self.N):
+          F = np.concatenate(F, self.field[i], axis=2)
+
+    return F
+
 # === ENGINE ===============================================================
 
 class Engine:
@@ -397,6 +436,7 @@ class Engine:
     self.geom = Geometry(dimension, **kwargs)
     self.agents = Agents(dimension)
     self.groups = Groups(dimension)
+    self.fields = Fields(dimension)
     self.inputs = []
     self.outputs = []
     
@@ -601,32 +641,24 @@ class Engine:
     self.groups.inputs.append(kwargs['inputs'] if 'inputs' in kwargs else [])
     self.groups.outputs.append(kwargs['outputs'] if 'outputs' in kwargs else [])
 
+  def add_field(self, field, **kwargs):
+    '''
+    Add a field
+    '''
+
+    self.fields.add(field, **kwargs)
+
   # ------------------------------------------------------------------------
   #   Setups
   # ------------------------------------------------------------------------
 
-  def setup_animation(self, animation_type=Animation.AGENTS, style='dark'):
+  def setup_animation(self, style='dark', **kwargs):
     '''
     Define animation
     '''
 
     self.window = Window('MIDAS', style=style)
-
-    match self.geom.dimension:
-      case 1:
-        pass
-      case 2:
-        match animation_type:
-
-          case Animation.AGENTS:
-            self.animation = MIDAS.animation.Agents_2d(self)
-
-          case Animation.FIELD_DENSITY:
-            self.animation = MIDAS.animation.Field(self)
-
-      case 3:
-        pass
-    
+    self.animation = MIDAS.animation.Animation(self, **kwargs)
     self.window.add(self.animation)
 
     # Forbid backward animation

@@ -87,17 +87,10 @@ E.set_weights(in_presence, np.array([-1, -1, -1, -1, 0.1, 0.1, 0.1, 0.1]))
 
 # === Visualization ========================================================
 
-E.setup_animation()
-E.animation.options['fixed']['color'] = 'grey'
-E.animation.options['agents']['cmap'] = 'hsv'
-
-# --- Information
-
-# E.animation.add_info_weights()
-# E.animation.add_info()
-
-# --- Traces
-# E.animation.trace_duration = 10
+E.setup_animation(agents=AnimAgents.ALL)
+E.animation.trace_duration = 10
+E.animation.group_options['fixed']['color'] = 'grey'
+E.animation.group_options['agents']['cmap'] = 'hsv'
 
 # === Simulation ===========================================================
 

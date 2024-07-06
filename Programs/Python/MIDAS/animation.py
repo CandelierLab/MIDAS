@@ -5,15 +5,14 @@ from MIDAS.enums import *
 from Animation.Animation_2d import *
 from Animation.Colormap import *
 
+class Animation(Animation_2d):
 
-class AnimationBase(Animation_2d):
-
-  def __init__(self, engine):
+  def __init__(self, engine, agents=AnimAgents.NONE, field=AnimField.NONE, **kwargs):
     '''
     Constructor
     '''
 
-    # Define engine
+    # Definitions
     self.engine = engine
     self.dim = self.engine.geom.dimension
 
@@ -22,18 +21,182 @@ class AnimationBase(Animation_2d):
                      boundaries=[np.array([-1, 1])*self.engine.geom.arena_shape[0]/2,
                                  np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
                      disp_boundaries=False)
-    
-    # Animation options
-    self.options = {}
+
+    # --- Agents and field
+
+    # Trajectory traces
+    self.trace_duration = None
+
+    self.set_agents(agents)
+    self.field = field
+
+    # --- Agent options
+
+    self.group_options = {}
+
+    # Default group options
+    for k in self.engine.groups.names:
+      self.group_options[k] = {
+        'color': ('white', 'white'), 
+        'cmap': None,
+        'cmap_on': 'x0',
+        'cmap_dynamic': None,
+        'size': 0.007
+      }
+
+    # --- Field options
+
+    self.field_options = {}
+
+    self.field_options['resolution'] = [500, 500]
+    self.field_options['sigma'] = 5
+    self.field_options['range'] = [0, 1]
+
+    # Misc properties
+    self.is_running = True
 
   # ------------------------------------------------------------------------
   #   Initialization
   # ------------------------------------------------------------------------
 
+  def set_agents(self, agents):
+    '''
+    Set the list of agents to display
+    '''
+
+    match agents:
+
+      case AnimAgents.NONE:
+        self.l_agents = []
+
+      case AnimAgents.SUBSET_10:
+        self.l_agents = np.unique(np.round(np.linspace(0, self.engine.agents.N-1, 10)).astype(int)) if self.engine.agents.N>10 else np.array(list(range(self.engine.agents.N)), dtype=int)
+
+      case AnimAgents.SUBSET_100:
+        self.l_agents = np.unique(np.round(np.linspace(0, self.engine.agents.N-1, 100)).astype(int)) if self.engine.agents.N>100 else np.array(list(range(self.engine.agents.N)), dtype=int)
+
+      case AnimAgents.ALL:
+        self.l_agents = np.array(list(range(self.engine.agents.N)), dtype=int)
+
+      case _:
+        self.l_agents = np.array(agents, dtype=int)
+
   def initialize(self):
     
+    # --- Boundaries
+
+    # Define padding
+
+    padding = np.max([self.group_options[k]['size'] for k in self.group_options]) if self.group_options else 0
+    self.setPadding(padding)
+
     # Set boundaries
     self.set_boundaries()
+
+    # === Agents ===========================================================
+
+    if self.l_agents is not None:
+
+      # Agent's triangle shape
+      pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
+
+      for i in self.l_agents:
+
+        # Group options
+        opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
+
+        # --- Color
+
+        # Colormap and color
+        if opt['cmap'] is None:
+          color = opt['color']
+        else:
+          color = None
+          cmap = Colormap(name=opt['cmap'])
+
+        if color is None:
+          match opt['cmap_on']:
+
+            case 'index': # Color on index
+              n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
+              cmap.range = [0, n-1]
+              clrs = [cmap.qcolor(i)]*2
+
+            case 'x0': # Color on x-position (default)
+              cmap.range = self.boundaries['x']
+              clrs = [cmap.qcolor(self.engine.agents.pos[i,0])]*2
+
+            case 'y0': # Color on y-position   
+              cmap.range = self.boundaries['y']         
+              clrs = [cmap.qcolor(self.engine.agents.pos[i,1])]*2
+
+            case 'z0': # Color on z-position            
+              cmap.range = self.boundaries['z']
+              clrs = [cmap.qcolor(self.engine.agents.pos[i,2])]*2
+
+        elif isinstance(color, tuple):
+          clrs = color
+
+        else:
+          clrs = (color, None)
+
+        # --- Shape
+
+        if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
+          '''
+          Fixed agents
+          '''
+
+          self.add(circle, i,
+            position = self.engine.agents.pos[i,:],
+            radius = 0.0035,
+            colors = clrs,
+            zvalue=-1
+          )
+
+        else:
+          '''
+          Moving agents
+          '''
+
+          self.add(polygon, i,
+            position =  self.engine.agents.pos[i,:],
+            orientation = self.engine.agents.vel[i,1],
+            points = pts*opt['size'],
+            colors = clrs,
+          )
+
+        # --- Traces
+        
+        if self.trace_duration is not None:
+
+          trace = [self.engine.agents.pos[i,:]]*self.trace_duration
+
+          # Semi-transparent color
+          clr = QColor(clrs[0])
+          clr.setAlpha(100)
+
+          # Trace paths
+          self.add(path, f'{i:d}_trace',
+            position = -self.engine.geom.arena_shape/2,
+            orientation = 0,
+            points = trace,
+            colors = (None, clr),
+            thickness = 3
+          )
+
+    # === Field ============================================================
+
+    if self.field is not AnimField.NONE:
+
+      # Image container
+      self.add(image, 'field',
+              position = -self.engine.geom.arena_shape/2,
+              cmap = Colormap('turbo', range=self.field_options['range']),
+              zvalue = -1,
+              )
+      
+      self.update_display()
 
   def set_boundaries(self):
     '''
@@ -148,180 +311,91 @@ class AnimationBase(Animation_2d):
 
   def update_display(self, **kwargs):
     '''
-    Update display (to overload)
-    '''
-
-    pass
-
-############################################################################
-############################################################################
-# #                                                                      # #
-# #                                                                      # #
-# #                              AGENTS                                  # #
-# #                                                                      # #
-# #                                                                      # #
-############################################################################
-############################################################################
-
-class Agents_2d(AnimationBase):
-    
-  # ------------------------------------------------------------------------
-  #   Constructor
-  # ------------------------------------------------------------------------
-
-  def __init__(self, engine):
-
-    super().__init__(engine)
-
-    # Default display options
-    for k in self.engine.groups.names:
-      self.options[k] = {
-        'color': 'white', 
-        'cmap': None,
-        'cmap_on': 'x0',
-        'cmap_dynamic': None,
-        'size': 0.01
-      }
-
-    # Trajectory trace
-    self.trace_duration = None
-
-    # Misc properties
-    self.is_running = True
-
-  # ------------------------------------------------------------------------
-  #   Initialization
-  # ------------------------------------------------------------------------
-   
-  def initialize(self):
-
-    # Define padding
-    padding = np.max([self.options[k]['size'] for k in self.options])    
-    self.setPadding(padding)
-    
-    # Base initialization
-    super().initialize()
-
-    # === Agents ===========================================================
-
-    # Agent's triangle shape
-    pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
-
-    for i in range(self.engine.agents.N):
-
-      # Group options
-      opt = self.options[self.engine.groups.names[int(self.engine.agents.group[i])]]
-
-      # --- Color
-
-      # Colormap and color
-      if opt['cmap'] is None:
-        color = opt['color']
-      else:
-        color = None
-        cmap = Colormap(name=opt['cmap'])
-
-      if color is None:
-        match opt['cmap_on']:
-
-          case 'index': # Color on index
-            n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
-            cmap.range = [0, n-1]
-            clrs = (cmap.qcolor(i), None)
-
-          case 'x0': # Color on x-position (default)
-            cmap.range = self.boundaries['x']
-            clrs = (cmap.qcolor(self.engine.agents.pos[i,0]), None)
-
-          case 'y0': # Color on y-position   
-            cmap.range = self.boundaries['y']         
-            clrs = (cmap.qcolor(self.engine.agents.pos[i,1]), None)
-
-          case 'z0': # Color on z-position            
-            cmap.range = self.boundaries['z']
-            clrs = (cmap.qcolor(self.engine.agents.pos[i,2]), None)
-
-      elif isinstance(color, tuple):
-        clrs = color
-
-      else:
-        clrs = (color, None)
-
-      # --- Shape
-
-      if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
-        '''
-        Fixed agents
-        '''
-
-        self.add(circle, i,
-          position = self.engine.agents.pos[i,:],
-          radius = 0.0035,
-          colors = clrs,
-          zvalue=-1
-        )
-
-      else:
-        '''
-        Moving agents
-        '''
-
-        self.add(polygon, i,
-          position =  self.engine.agents.pos[i,:],
-          orientation = self.engine.agents.vel[i,1],
-          points = pts*opt['size'],
-          colors = clrs,
-        )
-
-        # === Traces =======================================================
-          
-        # if self.trace_duration is not None:
-
-        #   # Initialize trace coordinates
-        #   Ag.trace = np.ones((self.trace_duration,1))*np.array([Ag.x, Ag.y])
-      
-        #   # Trace polygon
-        #   self.add(path, f'{i:d}_trace',
-        #     position = [0, 0],
-        #     orientation = 0,
-        #     points = Ag.trace,
-        #     colors = (None, clrs[0]),
-        #     thickness = 3
-        #   )
-
-  # ------------------------------------------------------------------------
-  #   Updates
-  # ------------------------------------------------------------------------
-        
-  def update_display(self, **kwargs):
-    '''
     Update display
     '''
     
-    for i in range(self.engine.agents.N):
+    # === Agents ===========================================================
 
-      # Skip fixed agents
-      if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED: continue
+    if self.l_agents is not None:
 
-      # Position
-      self.item[i].position = self.engine.agents.pos[i]
+      for i in self.l_agents:
 
-      # Orientation
-      self.item[i].orientation = self.engine.agents.vel[i,1]
+        # Skip fixed agents
+        if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED: continue
 
-      # Color
-      # match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
-      #   case 'speed':
-      #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].v), None)
-      #   case 'density':
-      #     if self.engine.agents.list[i].density is not None:
-      #       self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].density), None)
-      #   case 'custom':
-      #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].get_color()), None)
-    
-      # Traces
-      # if self.trace_duration is not None:
-      #   self.item[f'{i:d}_trace'].points = Ag.trace
+        # Position
+        self.item[i].position = self.engine.agents.pos[i]
+
+        # Orientation
+        self.item[i].orientation = self.engine.agents.vel[i,1]
+
+        # Color
+        # match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
+        #   case 'speed':
+        #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].v), None)
+        #   case 'density':
+        #     if self.engine.agents.list[i].density is not None:
+        #       self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].density), None)
+        #   case 'custom':
+        #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].get_color()), None)
+      
+        # --- Traces
+
+        if self.trace_duration is not None:
+
+          # Previous trace
+          trace = np.array(self.item[f'{i:d}_trace'].points)
+
+          # Roll new trace
+          trace = np.roll(trace, 1, axis=0)
+          trace[0,0] = self.engine.agents.pos[i,0]
+          trace[0,1] = self.engine.agents.pos[i,1]
+
+          # Periodic boundary conditions
+          if self.engine.geom.periodic[0]:
+            trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geom.arena_shape[0], axis=0)
+            I = np.logical_or(trace[:,0]<-self.engine.geom.arena_shape[0]/2, trace[:,0]>self.engine.geom.arena_shape[0]/2)
+            trace[I,0] = np.nan
+            trace[I,1] = np.nan
+
+          if self.engine.geom.periodic[1]:
+            trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geom.arena_shape[1], axis=0)
+            I = np.logical_or(trace[:,1]<-self.engine.geom.arena_shape[1]/2, trace[:,1]>self.engine.geom.arena_shape[1]/2)
+            trace[I,0] = np.nan
+            trace[I,1] = np.nan
+            
+          # Update trace
+          self.item[f'{i:d}_trace'].points = trace
+
+    # === Field ============================================================
+
+    match self.field:
+
+      case AnimField.DENSITY:
+
+        # Raw density
+        Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))
+
+        for k in range(self.engine.agents.N):
+
+          i = round((0.5 + self.engine.agents.pos[k][0]/self.engine.geom.arena_shape[0])*(self.field_options['resolution'][0]-1))
+          j = round((0.5 + self.engine.agents.pos[k][1]/self.engine.geom.arena_shape[1])*(self.field_options['resolution'][1]-1))
+
+          Img[self.field_options['resolution'][1]-j-1,i] += 1
+          
+        # Gaussian smooth
+        Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
+
+        self.item['field'].image = Res
+
+      case AnimField.POLARITY:
+
+        # !! TODO !!
+        pass
+
+      case _:
+
+        pass
 
   def stop(self):
     '''
@@ -330,56 +404,3 @@ class Agents_2d(AnimationBase):
     
     if self.is_running:
       self.engine.end()
-
-############################################################################
-############################################################################
-# #                                                                      # #
-# #                                                                      # #
-# #                              FIELDS                                  # #
-# #                                                                      # #
-# #                                                                      # #
-############################################################################
-############################################################################
-
-class Field(AnimationBase):
-
-  def __init__(self, engine):
-
-    super().__init__(engine)
-
-    self.options['resolution'] = [500, 500]
-    self.options['sigma'] = 5
-    self.options['range'] = [0, 1]
-    
-  def initialize(self, start=0):
-    
-    # Base initialization
-    super().initialize()
-
-    # Image container
-    self.add(image, 'background',
-            position = -self.engine.geom.arena_shape/2,
-            cmap = Colormap('turbo', range=self.options['range']),
-            zvalue = -1,
-            )
-
-    # Initial display
-    self.window.step = start
-    self.update_display(step=start)
-   
-  def update_display(self, **kwargs):
-
-    # Raw density
-    Img = np.zeros((self.options['resolution'][1], self.options['resolution'][0]))
-
-    for k in range(self.engine.agents.N):
-
-      i = round((0.5 + self.engine.agents.pos[k][0]/self.engine.geom.arena_shape[0])*(self.options['resolution'][0]-1))
-      j = round((0.5 + self.engine.agents.pos[k][1]/self.engine.geom.arena_shape[1])*(self.options['resolution'][1]-1))
-
-      Img[self.options['resolution'][1]-j-1,i] += 1
-      
-    # Gaussian smooth
-    Res = gaussian_filter(Img, (self.options['sigma'], self.options['sigma']))
-
-    self.item['background'].image = Res

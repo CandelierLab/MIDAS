@@ -78,17 +78,10 @@ E.set_weights(in_presence_2, np.array([1, 1, 1, 1, -1, -1, -1, -1]))
 
 # === Visualization ========================================================
 
-E.setup_animation()
-E.animation.options['agents_1']['color'] = 'cyan'
-E.animation.options['agents_2']['color'] = 'orange'
-
-# --- Information
-
-# E.animation.add_info_weights()
-# E.animation.add_info()
-
-# --- Traces
-# E.animation.trace_duration = 10
+E.setup_animation(agents=AnimAgents.ALL)
+E.animation.trace_duration = 10
+E.animation.group_options['agents_1']['color'] = 'cyan'
+E.animation.group_options['agents_2']['color'] = 'orange'
 
 # === Simulation ===========================================================
 
