@@ -374,47 +374,6 @@ class Output:
    
     return [self.action.value, self.activation.value]
 
-# === FIELDS ===============================================================
-
-class Fields:
-  '''
-  Fields
-  '''
-
-  def __init__(self, dimension):
-
-    self.dimension = dimension
-    
-    # Number of fields
-    self.N = 0
-
-    # Fields
-    self.field = []
-
-  def add(self, field):
-    '''
-    Add a field
-    '''
-
-    self.field.append(field)
-
-    # Update number of fields
-    self.N = len(self.field)
-
-  def perception(self, **kwargs):
-    '''
-    Perception
-    '''
-
-    return None
-
-  def update(self, **kwargs):
-    '''
-    Field update
-    '''
-
-    pass
-
 # === ENGINE ===============================================================
 
 class Engine:
@@ -438,7 +397,7 @@ class Engine:
     self.geom = Geometry(dimension, **kwargs)
     self.agents = Agents(dimension)
     self.groups = Groups(dimension)
-    self.fields = Fields(dimension)
+    self.fields = None
     self.inputs = []
     self.outputs = []
     
@@ -648,6 +607,10 @@ class Engine:
     Add a field
     '''
 
+    if self.fields is None: 
+      warnings.warn('No Field object has been defined.')
+      return None
+
     self.fields.add(field, **kwargs)
     return self.fields.N-1
 
@@ -787,10 +750,7 @@ class Engine:
     self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
     self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
     self.cuda.custom = cuda.to_device(self.param_custom.astype(np.float32))
-    # self.cuda.input_fields = cuda.to_device(self.fields.values.astype(np.float32))
-    self.cuda.input_fields = cuda.to_device(np.zeros(0).astype(np.float32))
-
-
+    
     # Double buffers
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
     self.cuda.v0 = cuda.to_device(self.agents.vel.astype(np.float32))
@@ -803,11 +763,7 @@ class Engine:
 
       from alive_progress import alive_it
 
-      '''
-      It is important that steps start at 1, step=0 being the initial state
-      '''
-
-
+      ''' It is important that steps start at 1, step=0 being the initial state '''
       bar = alive_it(range(self.steps))
       bar.title = self.verbose.get_caller(1)
       for step in bar:
@@ -826,6 +782,10 @@ class Engine:
       self.window.show()
 
   def step(self, i):
+
+    # Field inputs
+    if self.fields is not None:
+      self.cuda.input_fields = cuda.to_device(np.array(self.fields.perception()).astype(np.float32))
 
     # Double-buffer computation trick
     if i % 2:
@@ -854,7 +814,7 @@ class Engine:
     
     # --- Fields update
 
-    if self.fields.N:
+    if self.fields is not None and self.fields.N:
       self.fields.update()
 
     # --- DB Storage
@@ -1176,7 +1136,7 @@ class CUDA:
           for j in range(N):
 
             # Skip self-perception
-            if j==i: 
+            if j==i:
               visible[j] = False
               continue
 
@@ -1186,6 +1146,11 @@ class CUDA:
               case 2:
                 z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
               case 3: pass
+
+        else:
+          z = None
+          alpha = None
+          visible = None
 
         # --- RIPO agents ------------------------------------------------------
 
