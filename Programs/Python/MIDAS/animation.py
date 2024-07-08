@@ -398,7 +398,8 @@ class Animation(Animation_2d):
 
       case _:
 
-        self.item['field'].image = self.engine.fields.values[:,:,self.field]
+        if self.field<self.engine.fields.N:
+          self.item['field'].image = self.engine.fields.field[self.field]
 
   def stop(self):
     '''
