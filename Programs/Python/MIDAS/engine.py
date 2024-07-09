@@ -783,9 +783,14 @@ class Engine:
 
   def step(self, i):
 
-    # Field inputs
-    if self.fields is not None:
+    # Update field inputs
+    if self.fields is not None and self.fields.N:      
+
+      # Perceive field
       self.cuda.input_fields = cuda.to_device(np.array(self.fields.perception()).astype(np.float32))
+
+      # Update field
+      self.fields.update()
 
     # Double-buffer computation trick
     if i % 2:
@@ -812,10 +817,8 @@ class Engine:
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
-    # --- Fields update
-
-    if self.fields is not None and self.fields.N:
-      self.fields.update()
+    # Update field
+    # self.fields.perception()
 
     # --- DB Storage
 

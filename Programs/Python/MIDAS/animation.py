@@ -194,6 +194,7 @@ class Animation(Animation_2d):
       self.add(image, 'field',
               position = -self.engine.geom.arena_shape/2,
               cmap = Colormap(self.field_options['cmap'], range=self.field_options['range']),
+              flip_vertical = True,
               zvalue = -1,
               )
       
@@ -384,7 +385,7 @@ class Animation(Animation_2d):
           i = round((0.5 + self.engine.agents.pos[k][0]/self.engine.geom.arena_shape[0])*(self.field_options['resolution'][0]-1))
           j = round((0.5 + self.engine.agents.pos[k][1]/self.engine.geom.arena_shape[1])*(self.field_options['resolution'][1]-1))
 
-          Img[self.field_options['resolution'][1]-j-1,i] += 1
+          Img[j,i] += 1
           
         # Gaussian smooth
         Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
