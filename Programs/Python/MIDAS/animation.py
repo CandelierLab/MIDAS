@@ -339,8 +339,9 @@ class Animation(Animation_2d):
       y = self.engine.agents.pos[:,1] + self.shift[1]
 
       # Periodicity
-      if self.engine.geom.periodic[0]: x = ((x + self.W/2) % self.W) - self.W/2
-      if self.engine.geom.periodic[1]: y = ((y + self.H/2) % self.H) - self.H/2
+      if self.engine.geom.arena==Arena.RECTANGULAR:
+        if self.engine.geom.periodic[0]: x = ((x + self.W/2) % self.W) - self.W/2
+        if self.engine.geom.periodic[1]: y = ((y + self.H/2) % self.H) - self.H/2
 
       for i in self.l_agents:
 
@@ -353,16 +354,6 @@ class Animation(Animation_2d):
         # Orientation
         self.item[i].orientation = self.engine.agents.vel[i,1]
 
-        # Color
-        # match self.options[self.engine.agents.list[i].name]['cmap_dynamic']:
-        #   case 'speed':
-        #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].v), None)
-        #   case 'density':
-        #     if self.engine.agents.list[i].density is not None:
-        #       self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].density), None)
-        #   case 'custom':
-        #     self.item[i].colors = (self.colormap.qcolor(self.engine.agents.list[i].get_color()), None)
-      
         # --- Traces
 
         if self.trace_duration is not None:

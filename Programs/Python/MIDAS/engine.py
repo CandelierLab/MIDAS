@@ -428,6 +428,9 @@ class Engine:
 
     self.CUDA_perception = None
 
+    self.n_CUDA_measurements = 0
+    self.measurements = None
+
     # --- Time
 
     # Total number of steps
@@ -438,7 +441,7 @@ class Engine:
 
     # --- Misc attributes
     
-    self.custom = {}
+    self.custom_param = {}
     self.verbose = MIDAS.verbose.cli_Reporter()
     self.verbose.level = Verbose.NORMAL
 
@@ -700,7 +703,7 @@ class Engine:
 
     # --- Custom parameters ------------------------------------------------
 
-    self.param_custom = np.array([self.custom[x] for x in sorted(self.custom)])
+    self.param_custom = np.array([self.custom_param[x] for x in sorted(self.custom_param)])
 
   def run(self):
 
@@ -753,7 +756,8 @@ class Engine:
     self.cuda.perceptions = cuda.to_device(self.param_perceptions.astype(np.float32))
     self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
     self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
-    self.cuda.custom = cuda.to_device(self.param_custom.astype(np.float32))
+    self.cuda.custom_param = cuda.to_device(self.param_custom.astype(np.float32))
+    self.cuda.measurements = cuda.to_device(np.zeros((self.agents.N, self.n_CUDA_measurements), dtype=np.float32))
 
     if self.fields is None:
       self.cuda.input_fields = cuda.to_device([np.float32(0)])
@@ -803,7 +807,8 @@ class Engine:
     if i % 2:
       
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
-        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.input_fields, self.cuda.custom,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
+        self.cuda.custom_param, self.cuda.input_fields, self.cuda.measurements,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.rng)
       
@@ -815,7 +820,8 @@ class Engine:
     else:
 
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
-        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups, self.cuda.input_fields, self.cuda.custom,
+        self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
+        self.cuda.custom_param, self.cuda.input_fields, self.cuda.measurements,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.rng)
       
@@ -824,8 +830,9 @@ class Engine:
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
-    # Update field
-    # self.fields.perception()
+    # Get back measurements
+    if self.n_CUDA_measurements:
+      self.measurements = self.cuda.measurements.copy_to_host()
 
     # --- DB Storage
 
@@ -996,7 +1003,8 @@ class CUDA:
     self.actions = None
     self.groups = None
     self.input_fields = None
-    self.custom = None
+    self.custom_param = None
+    self.measurements = None
     
     # Random number generator
     self.rng = create_xoroshiro128p_states(self.blockDim*self.gridDim, seed=0)
@@ -1027,7 +1035,7 @@ class CUDA:
     # --------------------------------------------------------------------------
     
     @cuda.jit
-    def CUDA_step(geometry, agents, perceptions, actions, groups, input_fields, custom, p0, v0, p1, v1, rng):
+    def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, measurements, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
       '''
@@ -1218,9 +1226,9 @@ class CUDA:
             if pi>0: 
               for k in range(nI): vIn[k] = 0
             
-            vIn, rng = perception.perceive(vIn, p, numbers, agent,
-                                      geometry, agents, perceptions, custom,
-                                      input_fields, 
+            vIn, measurements, rng = perception.perceive(vIn, p, numbers, agent,
+                                      geometry, agents, perceptions, custom_param,
+                                      input_fields, measurements,
                                       z, alpha, visible,
                                       m_nI, rng)
 
