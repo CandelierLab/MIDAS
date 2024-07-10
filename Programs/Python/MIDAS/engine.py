@@ -750,6 +750,9 @@ class Engine:
     self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
     self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
     self.cuda.custom = cuda.to_device(self.param_custom.astype(np.float32))
+
+    if self.fields is None:
+      self.cuda.input_fields = cuda.to_device([np.float32(0)])
     
     # Double buffers
     self.cuda.p0 = cuda.to_device(self.agents.pos.astype(np.float32))
