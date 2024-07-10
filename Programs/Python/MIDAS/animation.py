@@ -24,13 +24,13 @@ class Animation(Animation_2d):
 
     # --- Agents and field
 
-    # Trajectory traces
-    self.trace_duration = None
-
     self.set_agents(agents)
     self.field = field
 
     # --- Agent options
+
+    # Trajectory traces
+    self.trace_duration = None
 
     self.group_options = {}
 
@@ -53,7 +53,11 @@ class Animation(Animation_2d):
     self.field_options['range'] = [0, 1]
     self.field_options['cmap'] = 'turbo'
 
-    # Misc properties
+    # --- Misc properties
+
+    self.W = self.engine.geom.arena_shape[0]
+    self.H = self.engine.geom.arena_shape[1]
+    self.shift = np.zeros((2))
     self.is_running = True
 
   # ------------------------------------------------------------------------
@@ -308,8 +312,18 @@ class Animation(Animation_2d):
     # Compute step
     self.engine.step(t.step)
 
-    # Update display
+    # Update shift
+    self.update_shift()
+
+    #  Update display
     self.update_display(t=t)
+
+  def update_shift(self, **kwargs):
+    '''
+    Update the display shift
+    '''
+
+    pass
 
   def update_display(self, **kwargs):
     '''
@@ -320,13 +334,21 @@ class Animation(Animation_2d):
 
     if self.l_agents is not None:
 
+      # Positions
+      x = self.engine.agents.pos[:,0] + self.shift[0]
+      y = self.engine.agents.pos[:,1] + self.shift[1]
+
+      # Periodicity
+      if self.engine.geom.periodic[0]: x = ((x + self.W/2) % self.W) - self.W/2
+      if self.engine.geom.periodic[1]: y = ((y + self.H/2) % self.H) - self.H/2
+
       for i in self.l_agents:
 
         # Skip fixed agents
         if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED: continue
 
         # Position
-        self.item[i].position = self.engine.agents.pos[i]
+        self.item[i].position = [x[i], y[i]]
 
         # Orientation
         self.item[i].orientation = self.engine.agents.vel[i,1]
@@ -350,8 +372,8 @@ class Animation(Animation_2d):
 
           # Roll new trace
           trace = np.roll(trace, 1, axis=0)
-          trace[0,0] = self.engine.agents.pos[i,0]
-          trace[0,1] = self.engine.agents.pos[i,1]
+          trace[0,0] = x[i]
+          trace[0,1] = y[i]
 
           # Periodic boundary conditions
           if self.engine.geom.arena==Arena.RECTANGULAR:
@@ -382,8 +404,15 @@ class Animation(Animation_2d):
 
         for k in range(self.engine.agents.N):
 
-          i = round((0.5 + self.engine.agents.pos[k][0]/self.engine.geom.arena_shape[0])*(self.field_options['resolution'][0]-1))
-          j = round((0.5 + self.engine.agents.pos[k][1]/self.engine.geom.arena_shape[1])*(self.field_options['resolution'][1]-1))
+          x = (self.engine.agents.pos[k][0] + self.shift[0])/self.engine.geom.arena_shape[0] + 0.5
+          y = (self.engine.agents.pos[k][1] + self.shift[1])/self.engine.geom.arena_shape[1] + 0.5
+
+          # Periodicity
+          if self.engine.geom.periodic[0]: x = x % 1
+          if self.engine.geom.periodic[1]: y = y % 1
+
+          i = round(x*self.field_options['resolution'][0] - 0.5) % self.field_options['resolution'][0]
+          j = round(y*self.field_options['resolution'][1] - 0.5) % self.field_options['resolution'][1]
 
           Img[j,i] += 1
           

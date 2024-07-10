@@ -618,13 +618,17 @@ class Engine:
   #   Setups
   # ------------------------------------------------------------------------
 
-  def setup_animation(self, style='dark', **kwargs):
+  def setup_animation(self, style='dark', animationClass=None, **kwargs):
     '''
     Define animation
     '''
 
     self.window = Window('MIDAS', style=style)
-    self.animation = MIDAS.animation.Animation(self, **kwargs)
+    if animationClass is None:
+      self.animation = MIDAS.animation.Animation(self, **kwargs)
+    else:
+      self.animation = animationClass(self, **kwargs)
+
     self.window.add(self.animation)
 
     # Forbid backward animation

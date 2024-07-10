@@ -28,7 +28,7 @@ class InformationBase:
     '''
 
     # Compact mode
-    self.qanim.stack['vpadding'] = -0.01
+    self.qanim.stack['vpadding'] = -0.005
 
     # --- Arena
 
@@ -38,6 +38,17 @@ class InformationBase:
         s += f'{self.engine.geom.arena_shape}'
       case Arena.CIRCULAR:
         s += f'D={self.engine.geom.arena_shape[0]}'
+
+    self.qanim.add(text, 'arena', stack = True, string = s)
+
+    # --- Agents
+
+    s = f'N= {self.engine.agents.N}'
+    match self.engine.geom.arena:
+      case Arena.RECTANGULAR:
+        s += f' ({self.engine.agents.N/np.prod(self.engine.geom.arena_shape)})'
+      case Arena.CIRCULAR:
+        s += f' ({self.engine.agents.N/np.pi/(self.engine.geom.arena_shape[0]/2)**2})'
 
     self.qanim.add(text, 'arena', stack = True, string = s)
 
