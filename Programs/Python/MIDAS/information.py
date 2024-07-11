@@ -46,9 +46,9 @@ class InformationBase:
     s = f'N= {self.engine.agents.N}'
     match self.engine.geom.arena:
       case Arena.RECTANGULAR:
-        s += f' ({self.engine.agents.N/np.prod(self.engine.geom.arena_shape)})'
+        s += f' ({self.engine.agents.N/np.prod(self.engine.geom.arena_shape):.02f})'
       case Arena.CIRCULAR:
-        s += f' ({self.engine.agents.N/np.pi/(self.engine.geom.arena_shape[0]/2)**2})'
+        s += f' ({self.engine.agents.N/np.pi/(self.engine.geom.arena_shape[0]/2)**2:.02f})'
 
     self.qanim.add(text, 'arena', stack = True, string = s)
 

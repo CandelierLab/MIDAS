@@ -1272,7 +1272,8 @@ class CUDA:
                 output = 2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
 
               case Activation.HSM_CENTERED.value:
-                output = 4/math.pi*math.atan(math.exp((outBuffer[oid])/2))-1
+                # output = 4/math.pi*math.atan(math.exp((outBuffer[oid])/2))-1
+                output = 4/math.pi*math.atan(math.exp(outBuffer[oid]/2))-1
                   
             # --- Action (velocity updates)
 
