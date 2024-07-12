@@ -47,22 +47,30 @@ class Coefficients:
     Export the coeffificients to a weights array
     '''
 
-    if self.engine.inputs[self.i].grid is None:
-      return self.C
+    match self.engine.inputs[self.i].perception:
 
-    W = []
+      case Perception.PRESENCE: 
 
-    for i, Out in enumerate(self.engine.outputs):
-      for j in range(self.nCpO):
+        if self.engine.inputs[self.i].grid is None:
+          return self.C
 
-        k = self.nCpO*i + j
+        W = []
 
-        match Out.action:
+        for i, Out in enumerate(self.engine.outputs):
+          for j in range(self.nCpO):
 
-          case Action.SPEED_MODULATION:
-            W.append(self.C[k] if ((j+self.nSa/4) % self.nSa)<self.nSa/2 else -self.C[k])
+            k = self.nCpO*i + j
 
-          case Action.REORIENTATION:
-            W.append(self.C[k] if (j % self.nSa)<self.nSa/2 else -self.C[k])
+            match Out.action:
 
-    return np.array(W)
+              case Action.SPEED_MODULATION:
+                W.append(self.C[k] if ((j+self.nSa/4) % self.nSa)<self.nSa/2 else -self.C[k])
+
+              case Action.REORIENTATION:
+                W.append(self.C[k] if (j % self.nSa)<self.nSa/2 else -self.C[k])
+
+        return np.array(W)
+      
+      case Perception.ORIENTATION: 
+
+        return self.C

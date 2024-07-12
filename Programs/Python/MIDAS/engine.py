@@ -13,9 +13,10 @@ from numba.cuda.random import create_xoroshiro128p_states, init_xoroshiro128p_st
 
 from Animation.Window import Window
 
-from MIDAS.coefficients import Coefficients
-from MIDAS.storage import Storage
 from MIDAS.enums import *
+from MIDAS.coefficients import Coefficients
+import MIDAS.network
+from MIDAS.storage import Storage
 import MIDAS.animation
 from MIDAS.information import InformationBase
 import MIDAS.verbose
@@ -271,7 +272,7 @@ class Groups:
 
     for gid, atype in enumerate(self.atype):
 
-      # Przpare row
+      # Prepare row
       row = [atype.value]
 
       match atype:
@@ -436,6 +437,7 @@ class Engine:
     # --- Customizable CUDA packages
 
     self.CUDA_perception = None
+    self.CUDA_action = None
 
     self.n_CUDA_measurements = 0
     self.measurements = None
@@ -660,7 +662,7 @@ class Engine:
   #   Run process
   # ------------------------------------------------------------------------
 
-  def set_weights(self, i, C):
+  def set_coefficients(self, i, C):
     '''
     Set the weights
     '''
@@ -799,6 +801,7 @@ class Engine:
 
       # Use the animation clock
       self.animation.initialize()
+      self.animation.item[0].colors=('yellow', None)
       self.window.show()
 
   def step(self, i):
@@ -873,13 +876,13 @@ class Engine:
       self.animation.window.close()
 
 ############################################################################
-############################################################################
+# ######################################################################## #
 # #                                                                      # #
 # #                                                                      # #
 # #                               CUDA                                   # #
 # #                                                                      # #
 # #                                                                      # #
-############################################################################
+# ######################################################################## #
 ############################################################################
 
 '''
@@ -1030,15 +1033,23 @@ class CUDA:
     agent_drivenity = self.engine.agent_drivenity
 
     # CUDA local array dimensions
-    m_nI = max([x.weights.size for x in self.engine.inputs])
+    nI = int(np.sum([x.weights.size for x in self.engine.inputs]))
+    m_nIpp = max([x.weights.size for x in self.engine.inputs])
     m_nO = max([len(x) for x in self.engine.groups.outputs])
    
-    # Customizable CUDA functions
+    # -- Customizable CUDA functions
 
+    # Perception
     if self.engine.CUDA_perception is None:
       import MIDAS.CUDA.perception as perception
     else:
       perception = importlib.import_module(self.engine.CUDA_perception)
+
+    # Action
+    if self.engine.CUDA_action is None:
+      import MIDAS.CUDA.action as action
+    else:
+      action = importlib.import_module(self.engine.CUDA_action)
             
     # --------------------------------------------------------------------------
     #   The CUDA kernel
@@ -1182,111 +1193,121 @@ class CUDA:
 
         # --- RIPO agents ------------------------------------------------------
 
-        if atype==Agent.RIPO.value:
-
-          nP = groups[gid,1]
-          nO = groups[gid,2]
-          nG = groups.shape[0]
-                    
-          # --- Shorthand arrays
-
-          agent = cuda.local.array(5, nb.float32)
-
-          # Agent
-          agent[0] = i
-          agent[1] = p0[i,0]
-          agent[2] = p0[i,1]
-          agent[3] = v0[i,0]
-          agent[4] = v0[i,1]
-
-          # Container for the weighted sum
-          outBuffer = cuda.local.array(m_nO, nb.float32)
-          
-          # === Perceptions
-
-          # Inputs local array
-          vIn = cuda.local.array(m_nI, nb.float32)
-          
-          for pi in range(nP):
-  
-            # Perception index
-            p = int(groups[gid, pi+3])
-
-            # Grid parameters
-            nR = perceptions[p,2]
-            nSa = perceptions[p,4] if dim>1 else 1
-            nSb = perceptions[p,5] if dim>2 else 1
-
-            # Number of inputs
-            nI = nG*nR*nSb*nSa
-
-            # --- Define parameters
-            '''
-            Parameters are fixed, they cannot be altered in the perception function)
-            '''
-            
-            param = (geometry, agent, perceptions, agents, z, alpha, visible,
-                     input_fields, custom_param, m_nI, nO, nG, nR, nSa, nSb)
-
-            # --- Inputs
-
-            # Reset input array
-            if pi>0: 
-              for k in range(nI): vIn[k] = 0
-            
-            # Perception function
-            vIn, measurements, rng = perception.perceive(vIn, measurements, rng, p, param)
- 
-            # --- Normalization
-
-            vIn = normalize(vIn, perceptions[p,1], param)
-              
-            # === Outputs
-
-            for oid in range(nO):
-
-              # --- Weighted sum
-
-              for k in range(nI):
-                outBuffer[oid] += vIn[k]*perceptions[p, int(dim + nR + 3 + nI*oid + k)]
-
-          # === Actions
-
-          for oid in range(nO):
-
-            aid = int(groups[gid, int(nP + 3 + oid)])
-
-            otype = actions[aid,0]
-            ftype = actions[aid,1]
-
-            # --- Activation
-
-            match ftype:
-
-              case Activation.IDENTITY.value:
-                output = outBuffer[oid]
-
-              case Activation.HSM_POSITIVE.value:
-                output = 2/math.pi*math.atan(math.exp(outBuffer[oid]/2))
-
-              case Activation.HSM_CENTERED.value:
-                # output = 4/math.pi*math.atan(math.exp((outBuffer[oid])/2))-1
-                output = 4/math.pi*math.atan(math.exp(outBuffer[oid]/2))-1
+        nP = groups[gid,1]
+        nO = groups[gid,2]
+        nG = groups.shape[0]
                   
-            # --- Action (velocity updates)
+        # --- Shorthand arrays
 
-            match otype:
+        agent = cuda.local.array(5, nb.float32)
 
-              case Action.REORIENTATION.value: 
-                a += da_scale*output
+        # Agent
+        agent[0] = i
+        agent[1] = gid
+        agent[2] = p0[i,0]
+        agent[3] = p0[i,1]
+        agent[4] = v0[i,0]
+        agent[5] = v0[i,1]
 
-              case Action.SPEED_MODULATION.value:
-                v += dv_scale*output
+        '''
+        Parameters are fixed, they cannot be altered in the perception function)
+        '''
+        param = (geometry, groups, agents, perceptions, agent, z, alpha, visible,
+                    input_fields, custom_param)
+
+        # Container for the weighted sum
+        vOut = cuda.local.array(m_nO, nb.float32)
+        
+        # === INPUTS
+
+        # Inputs local array
+        vIn = cuda.local.array(nI, nb.float32)
+        pIn = cuda.local.array(m_nIpp, nb.float32)
+        vi = 0
+        
+        for pi in range(nP):
+
+          # Perception index
+          p = int(groups[gid, pi+3])
+
+          # Grid parameters
+          nR = perceptions[p,2]
+          nSa = perceptions[p,4] if dim>1 else 1
+          nSb = perceptions[p,5] if dim>2 else 1
+
+          # Number of inputs
+          nIpp = int(nG*nR*nSb*nSa)
+
+          # --- Define parameters
+          '''
+          Parameters are fixed, they cannot be altered in the perception function)
+          '''
+          
+          pparam = (m_nIpp, nO, nG, nR, nSa, nSb)
+
+          # === Inputs
+
+          # Reset input buffer
+          if pi>0: 
+            for k in range(nIpp): pIn[k] = 0
+          
+          # Perception function
+          pIn, measurements, rng = perception.perceive(pIn, measurements, rng, p, param, pparam)
+
+          # === Normalization
+
+          pIn = normalize(pIn, perceptions[p,1], pparam)
+            
+          # === Storage
+
+          for k in range(nIpp):
+            vIn[vi+k] = pIn[k]
+          vi += nIpp
+
+        # === OUTPUTS
+
+        match atype:
+          
+          case Agent.RIPO.value:
+            vOut, measurements = MIDAS.network.run(vOut, measurements, vIn, param)
+
+        # === ACTIONS
+
+        for oid in range(nO):
+
+          aid = int(groups[gid, int(nP + 3 + oid)])
+
+          otype = actions[aid,0]
+          ftype = actions[aid,1]
+
+          # --- Activation
+
+          match ftype:
+
+            case Activation.IDENTITY.value:
+              output = vOut[oid]
+
+            case Activation.HSM_POSITIVE.value:
+              output = 2/math.pi*math.atan(math.exp(vOut[oid]/2))
+
+            case Activation.HSM_CENTERED.value:
+              # output = 4/math.pi*math.atan(math.exp((vOut[oid])/2))-1
+              output = 4/math.pi*math.atan(math.exp(vOut[oid]/2))-1
+                
+          # --- Action (velocity updates)
+
+          match otype:
+
+            case Action.REORIENTATION.value: 
+              a += da_scale*output
+
+            case Action.SPEED_MODULATION.value:
+              v += dv_scale*output
       
         # if i==1:
         #   print(aid)
-          # print(vIn[0], vIn[1], vIn[2], vIn[3], outBuffer[0], output)
-          # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], outBuffer[0])
+          # print(vIn[0], vIn[1], vIn[2], vIn[3], vOut[0], output)
+          # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], vOut[0])
           # print(v)
 
         # === Update =======================================================
@@ -1454,12 +1475,12 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   return (px, py, v, a)
 
 @cuda.jit(device=True, cache=True)
-def normalize(vIn, ntype, param):
+def normalize(vIn, ntype, pparam):
 
-  nG = param[i_NG]
-  nR = param[i_NR]
-  nSa = param[i_NSA]
-  nSb = param[i_NSB]
+  nG = pparam[ip_NG]
+  nR = pparam[ip_NR]
+  nSa = pparam[ip_NSA]
+  nSb = pparam[ip_NSB]
 
   match ntype:
 

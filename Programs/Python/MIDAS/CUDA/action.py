@@ -1,5 +1,5 @@
 '''
-Perception function
+Action function
 '''
 
 import math, cmath
@@ -8,7 +8,7 @@ from numba import cuda
 from MIDAS.enums import *
 
 @cuda.jit(device=True, cache=True)
-def perceive(pIn, measurements, rng, p, param, pparam):
+def action(pIn, measurements, rng, p, param):
 
   # --- Definitions
 
@@ -17,23 +17,22 @@ def perceive(pIn, measurements, rng, p, param, pparam):
   perceptions = param[i_PERCEPTIONS]
   rmax = perceptions[p,3]
 
-  agent = param[i_AGENT]
   agents = param[i_AGENTS]
   z = param[i_AGENTS_POSITIONS]
   alpha = param[i_AGENTS_ORIENTATIONS]
   visible = param[i_AGENTS_VISIBILITY]
 
-  nG = pparam[ip_NG]
-  nR = pparam[ip_NR]
-  nSa = pparam[ip_NSA]
-  nSb = pparam[ip_NSB]
+  nG = param[i_NG]
+  nR = param[i_NR]
+  nSa = param[i_NSA]
+  nSb = param[i_NSB]
 
   match perceptions[p,0]:
 
     case Perception.PRESENCE.value | Perception.ORIENTATION.value:
 
       if perceptions[p,0]==Perception.ORIENTATION.value:
-        Cbuffer = cuda.local.array(pparam[ip_MNIPP], nb.complex64)
+        Cbuffer = cuda.local.array(param[i_MNIPP], nb.complex64)
 
       for j in range(agents.shape[0]):
 

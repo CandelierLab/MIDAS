@@ -119,19 +119,19 @@ Do not change these values without updating the CUDA kernel
 '''
 
 i_GEOMETRY = 0
-i_AGENT = 1
-i_PERCEPTIONS = 2
-i_AGENTS = 3
-i_AGENTS_POSITIONS = 4
-i_AGENTS_ORIENTATIONS = 5
-i_AGENTS_VISIBILITY = 6
-i_FIELDS = 7
-i_CUSTOM = 8
-i_MNI = 9
-i_NO = 10
-i_NG = 11
-i_NR = 12
-i_NSA = 13
-i_NSB = 14
+i_GROUPS = 1
+i_AGENTS = 2
+i_PERCEPTIONS = 3
+i_AGENT = 4
+i_AGENTS_POSITIONS = 5
+i_AGENTS_ORIENTATIONS = 6
+i_AGENTS_VISIBILITY = 7
+i_FIELDS = 8
+i_CUSTOM = 9
 
-i_max = 15
+ip_MNIPP = 0
+ip_NO = 1
+ip_NG = 2
+ip_NR = 3
+ip_NSA = 4
+ip_NSB = 5

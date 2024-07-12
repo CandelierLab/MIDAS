@@ -19,12 +19,7 @@ os.system('clear')
 E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
-E.steps = 1000
-
-# Verbose
-# E.verbose.level = Verbose.HIGH
-
-# E.verbose('outside')
+E.steps = None
 
 # === Agents ===============================================================
 
@@ -35,14 +30,13 @@ E.steps = 1000
 # polar grid
 G = PolarGrid(rZ=[], nSa = 4)
 
-in_presence = E.add_input(Perception.PRESENCE,
-                          normalization = Normalization.SAME_GROUP,
-                          grid = G)
+# in_presence = E.add_input(Perception.PRESENCE,
+#                           normalization = Normalization.SAME_GROUP,
+#                           grid = G)
 
-in_orientation = E.add_input(Perception.ORIENTATION, 
-                            normalization = Normalization.NONE,
-                            grid = G,
-                            coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
+in_orientation = E.add_input(Perception.ORIENTATION,
+                             normalization = Normalization.NONE,
+                             grid = G)
 
 # --- Outputs 
 
@@ -55,19 +49,19 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 1000
+N = 100
 IC = {'position': None,
       'orientation': None,
-      'speed': 0.01} 
+      'speed': 0.01}  
 
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            inputs=[in_presence, in_orientation], outputs=[out_da])
+            inputs=[in_orientation], outputs=[out_da])
 
 # --- Coefficients
 
-E.set_weights(in_presence, np.array([1, 1, 1, 1]))
-E.set_weights(in_orientation, np.array([1, 1, 1, 1]))
+# E.set_coefficients(in_presence, np.array([1, 1, 1, 1]))
+E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
 
 # C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
