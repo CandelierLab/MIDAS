@@ -7,76 +7,79 @@ import numba as nb
 from numba import cuda
 from MIDAS.enums import *
 
+
 @cuda.jit(device=True, cache=True)
-def action(pIn, measurements, rng, p, param):
+def update_velocities(V, vOut, param, properties, rng):
 
   # --- Definitions
 
-  dim = int(param[i_GEOMETRY][0])
-
-  perceptions = param[i_PERCEPTIONS]
-  rmax = perceptions[p,3]
-
+  geometry = param[i_GEOMETRY]
   agents = param[i_AGENTS]
-  z = param[i_AGENTS_POSITIONS]
-  alpha = param[i_AGENTS_ORIENTATIONS]
-  visible = param[i_AGENTS_VISIBILITY]
+  groups = param[i_GROUPS]
+  agent = param[i_AGENT]
+  actions = param[i_ACTIONS]
 
-  nG = param[i_NG]
-  nR = param[i_NR]
-  nSa = param[i_NSA]
-  nSb = param[i_NSB]
+  dim = geometry[0]
+  i = int(agent[0])
+  gid = int(agent[1])
+  nP = int(groups[gid,1])
+  nO = groups[gid,2]
 
-  match perceptions[p,0]:
+  # Velocity limits
+  vmin = agents[i,1]
+  vmax = agents[i,2]
 
-    case Perception.PRESENCE.value | Perception.ORIENTATION.value:
+  dv_scale = agents[i,4]
 
-      if perceptions[p,0]==Perception.ORIENTATION.value:
-        Cbuffer = cuda.local.array(param[i_MNIPP], nb.complex64)
+  match dim:
 
-      for j in range(agents.shape[0]):
+    case 1:
+      vnoise = agents[i,5]
 
-        # Skip self-perception
-        if not visible[j]: continue
+    case 2:
+      da_scale = agents[i,5]
+      vnoise = agents[i,6]
+      anoise = agents[i,7]
 
-        # Perception rmax
-        if rmax>=0 and abs(z[j])>rmax: continue
+    case 3:
+      pass
+      # da_scale = agents[i,5]
+      # db_scale = agents[i,6]
+      # dc_scale = agents[i,7]
+      # vnoise = agents[i,8]
+      # anoise = agents[i,9]
+      # bnoise = agents[i,10]
+      # cnoise = agents[i,11]
 
-        # --- Indices (grid, coefficient)
+  for oid in range(nO):
 
-        # Radial index
-        ri = 0
-        for k in range(nR):
-          ri = k
-          if abs(z[j])<perceptions[p, dim+3+k]: break
-          
-        # Angular index
-        ai = int((cmath.phase(z[j]) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
-        bi = 0 # if dim>2 else 0  # TODO: 3D
+    aid = int(groups[gid, int(nP + 3 + oid)])
+    otype = actions[aid,0]
 
-        # Grid index
-        ig = (ri*nSa + ai)*nSb + bi
+    match otype:
 
-        # Coefficient index
-        ic = int(agents[j,0]*nR*nSa*nSb + ig)
+      case Action.SPEED_MODULATION.value:
+        V[0] += dv_scale*vOut[oid]
 
-        # --- Inputs
+      case Action.REORIENTATION.value: 
+        V[1] += da_scale*vOut[oid]
 
-        match perceptions[p,0]:
+  # --- Noise ----------------------------------------------------
 
-          case Perception.PRESENCE.value:
-            pIn[ic] += 1
+  match dim:
 
-          case Perception.ORIENTATION.value:
-            Cbuffer[ic] += cmath.rect(1., alpha[j])
+    case 2:
 
-      # --- Post-process
+      # Speed noise
+      if vnoise:
+        V[0] += vnoise*cuda.random.xoroshiro128p_normal_float32(rng, i)
 
-      match perceptions[p,0]:
+      # Speed limits
+      if V[0] < vmin: V[0] = vmin
+      elif V[0] > vmax: V[0] = vmax
 
-        case Perception.ORIENTATION.value:
+      # Angular noise
+      if anoise:
+        V[1] += anoise*cuda.random.xoroshiro128p_normal_float32(rng, i)
 
-          for ic in range(nG*nR*nSb*nSa):
-            pIn[ic] = cmath.phase(Cbuffer[ic])
-
-  return (pIn, measurements, rng)
+  return V

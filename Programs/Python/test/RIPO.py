@@ -80,7 +80,7 @@ E.animation.field_options['range'] = [0, 1]
 
 # === Simulation ===========================================================
 
-E.window.autoplay = False
+# E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()

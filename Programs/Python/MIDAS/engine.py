@@ -9,7 +9,7 @@ import time
 import numpy as np
 import numba as nb
 from numba import cuda
-from numba.cuda.random import create_xoroshiro128p_states, init_xoroshiro128p_states, xoroshiro128p_normal_float32
+from numba.cuda.random import create_xoroshiro128p_states
 
 from Animation.Window import Window
 
@@ -439,8 +439,8 @@ class Engine:
     self.CUDA_perception = None
     self.CUDA_action = None
 
-    self.n_CUDA_measurements = 0
-    self.measurements = None
+    self.n_CUDA_properties = 0
+    self.properties = None
 
     # --- Time
 
@@ -768,7 +768,7 @@ class Engine:
     self.cuda.actions = cuda.to_device(self.param_outputs.astype(np.float32))
     self.cuda.groups = cuda.to_device(self.param_groups.astype(np.float32))
     self.cuda.custom_param = cuda.to_device(self.param_custom.astype(np.float32))
-    self.cuda.measurements = cuda.to_device(np.zeros((self.agents.N, self.n_CUDA_measurements), dtype=np.float32))
+    self.cuda.properties = cuda.to_device(np.zeros((self.agents.N, self.n_CUDA_properties), dtype=np.float32))
 
     if self.fields is None:
       self.cuda.input_fields = cuda.to_device([np.float32(0)])
@@ -801,7 +801,7 @@ class Engine:
 
       # Use the animation clock
       self.animation.initialize()
-      self.animation.item[0].colors=('yellow', None)
+      # self.animation.item[0].colors=('yellow', None)
       self.window.show()
 
   def step(self, i):
@@ -820,7 +820,7 @@ class Engine:
       
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
         self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
-        self.cuda.custom_param, self.cuda.input_fields, self.cuda.measurements,
+        self.cuda.custom_param, self.cuda.input_fields, self.cuda.properties,
         self.cuda.p0, self.cuda.v0, self.cuda.p1, self.cuda.v1,
         self.cuda.rng)
       
@@ -833,7 +833,7 @@ class Engine:
 
       self.cuda.step[self.cuda.gridDim, self.cuda.blockDim](self.cuda.geometry,
         self.cuda.agents, self.cuda.perceptions, self.cuda.actions, self.cuda.groups,
-        self.cuda.custom_param, self.cuda.input_fields, self.cuda.measurements,
+        self.cuda.custom_param, self.cuda.input_fields, self.cuda.properties,
         self.cuda.p1, self.cuda.v1, self.cuda.p0, self.cuda.v0,
         self.cuda.rng)
       
@@ -842,9 +842,9 @@ class Engine:
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
-    # Get back measurements
-    if self.n_CUDA_measurements:
-      self.measurements = self.cuda.measurements.copy_to_host()
+    # Get back properties
+    if self.n_CUDA_properties:
+      self.properties = self.cuda.properties.copy_to_host()
 
     # --- DB Storage
 
@@ -1017,7 +1017,7 @@ class CUDA:
     self.groups = None
     self.input_fields = None
     self.custom_param = None
-    self.measurements = None
+    self.properties = None
     
     # Random number generator
     self.rng = create_xoroshiro128p_states(self.blockDim*self.gridDim, seed=0)
@@ -1033,6 +1033,7 @@ class CUDA:
     agent_drivenity = self.engine.agent_drivenity
 
     # CUDA local array dimensions
+    dim  = self.engine.geom.dimension
     nI = int(np.sum([x.weights.size for x in self.engine.inputs]))
     m_nIpp = max([x.weights.size for x in self.engine.inputs])
     m_nO = max([len(x) for x in self.engine.groups.outputs])
@@ -1055,8 +1056,8 @@ class CUDA:
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
-    @cuda.jit(cache=False)
-    def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, measurements, p0, v0, p1, v1, rng):
+    @cuda.jit(cache=True)
+    def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, properties, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
       '''
@@ -1066,7 +1067,7 @@ class CUDA:
       if i<p0.shape[0]:
                     
         # Dimension
-        dim = p0.shape[1]
+        # dim = p0.shape[1]
 
         # Group id
         gid = int(agents[i, 0])
@@ -1131,10 +1132,6 @@ class CUDA:
 
         # --- Agent parameters -------------------------------------------------
         
-        # Velocity limits
-        vmin = agents[i,1]
-        vmax = agents[i,2]
-
         # Visibility limit
         rmax = agents[i,3]
         dv_scale = agents[i,4]
@@ -1162,9 +1159,7 @@ class CUDA:
 
         # Agent position and velocity
         z0 = complex(p0[i,0], p0[i,1])
-        v = v0[i,0]
-        a = v0[i,1]
-        
+                
         # Other agents relative coordinates
         if agent_drivenity:
 
@@ -1212,8 +1207,9 @@ class CUDA:
         '''
         Parameters are fixed, they cannot be altered in the perception function)
         '''
-        param = (geometry, groups, agents, perceptions, agent, z, alpha, visible,
-                    input_fields, custom_param)
+        param = (geometry, groups, agents, perceptions, actions,
+                 agent, z, alpha, visible, 
+                 input_fields, custom_param)
 
         # Container for the weighted sum
         vOut = cuda.local.array(m_nO, nb.float32)
@@ -1252,7 +1248,7 @@ class CUDA:
             for k in range(nIpp): pIn[k] = 0
           
           # Perception function
-          pIn, measurements, rng = perception.perceive(pIn, measurements, rng, p, param, pparam)
+          pIn, properties, rng = perception.perceive(pIn, properties, rng, p, param, pparam)
 
           # === Normalization
 
@@ -1269,15 +1265,13 @@ class CUDA:
         match atype:
           
           case Agent.RIPO.value:
-            vOut, measurements = MIDAS.network.run(vOut, measurements, vIn, param)
+            vOut, properties = MIDAS.network.run(vOut, properties, vIn, param)
 
-        # === ACTIONS
+        # --- Activations
 
         for oid in range(nO):
 
           aid = int(groups[gid, int(nP + 3 + oid)])
-
-          otype = actions[aid,0]
           ftype = actions[aid,1]
 
           # --- Activation
@@ -1285,58 +1279,31 @@ class CUDA:
           match ftype:
 
             case Activation.IDENTITY.value:
-              output = vOut[oid]
+              pass
 
             case Activation.HSM_POSITIVE.value:
-              output = 2/math.pi*math.atan(math.exp(vOut[oid]/2))
+              vOut[oid] = 2/math.pi*math.atan(math.exp(vOut[oid]/2))
 
             case Activation.HSM_CENTERED.value:
               # output = 4/math.pi*math.atan(math.exp((vOut[oid])/2))-1
-              output = 4/math.pi*math.atan(math.exp(vOut[oid]/2))-1
+              vOut[oid] = 4/math.pi*math.atan(math.exp(vOut[oid]/2))-1
                 
-          # --- Action (velocity updates)
+        # === Actions (velocity updates)
 
-          match otype:
+        V = cuda.local.array(dim, nb.float32)
+        for d in range(dim): V[d] = v0[i,d]
 
-            case Action.REORIENTATION.value: 
-              a += da_scale*output
+        V = action.update_velocities(V, vOut, param, properties, rng)
 
-            case Action.SPEED_MODULATION.value:
-              v += dv_scale*output
-      
-        # if i==1:
-        #   print(aid)
-          # print(vIn[0], vIn[1], vIn[2], vIn[3], vOut[0], output)
-          # print(vIn[0], vIn[1], vIn[2], vIn[3], vIn[4], vIn[5], vIn[6], vIn[7], vOut[0])
-          # print(v)
+        # === Update positions
 
-        # === Update =======================================================
+        # Candidate position and velocity
+        z1 = z0 + cmath.rect(V[0], V[1])
 
-        match dim:
-
-          case 2:
-
-            # --- Noise ----------------------------------------------------
-
-            # Speed noise
-            if vnoise:
-              v += vnoise*xoroshiro128p_normal_float32(rng, i)
-
-            # Speed limits
-            if v < vmin: v = vmin
-            elif v > vmax: v = vmax
-
-            # Angular noise
-            if anoise:
-              a += anoise*xoroshiro128p_normal_float32(rng, i)
-
-            # Candidate position and velocity
-            z1 = z0 + cmath.rect(v, a)
-
-            # Boundary conditions
-            p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, v, a, arena,
-                                                          arena_X, arena_Y,
-                                                          periodic_X, periodic_Y)
+        # Boundary conditions
+        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, V[0], V[1], arena,
+                                                      arena_X, arena_Y,
+                                                      periodic_X, periodic_Y)
 
     # Store CUDA kernels
     self.step = CUDA_step
