@@ -7,22 +7,32 @@ import numba as nb
 from numba import cuda
 from MIDAS.enums import *
 
-@cuda.jit(device=True)
-def perceive(vIn, p, numbers, agent, geometry, agents, perceptions, custom, input_fields, z, alpha, visible, m_nI, rng):
+@cuda.jit(device=True, cache=True)
+def perceive(vIn, measurements, rng, p, param):
 
-  dim = numbers[0]
-  nG = numbers[2]
-  nR = numbers[3]
-  nSa = numbers[4]
-  nSb = numbers[5]
+  # --- Definitions
+
+  dim = int(param[i_GEOMETRY][0])
+
+  perceptions = param[i_PERCEPTIONS]
   rmax = perceptions[p,3]
+
+  agents = param[i_AGENTS]
+  z = param[i_AGENTS_POSITIONS]
+  alpha = param[i_AGENTS_ORIENTATIONS]
+  visible = param[i_AGENTS_VISIBILITY]
+
+  nG = param[i_NG]
+  nR = param[i_NR]
+  nSa = param[i_NSA]
+  nSb = param[i_NSB]
 
   match perceptions[p,0]:
 
     case Perception.PRESENCE.value | Perception.ORIENTATION.value:
 
       if perceptions[p,0]==Perception.ORIENTATION.value:
-        Cbuffer = cuda.local.array(m_nI, nb.complex64)
+        Cbuffer = cuda.local.array(param[i_MNI], nb.complex64)
 
       for j in range(agents.shape[0]):
 
@@ -69,4 +79,4 @@ def perceive(vIn, p, numbers, agent, geometry, agents, perceptions, custom, inpu
           for ic in range(nG*nR*nSb*nSa):
             vIn[ic] = cmath.phase(Cbuffer[ic])
 
-  return (vIn, rng)
+  return (vIn, measurements, rng)

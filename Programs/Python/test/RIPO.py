@@ -39,10 +39,10 @@ in_presence = E.add_input(Perception.PRESENCE,
                           normalization = Normalization.SAME_GROUP,
                           grid = G)
 
-# in_orientation = E.add_input(Perception.ORIENTATION, 
-#                             normalization = Normalization.NONE,
-#                             grid = G,
-#                             coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
+in_orientation = E.add_input(Perception.ORIENTATION, 
+                            normalization = Normalization.NONE,
+                            grid = G,
+                            coefficients = [1, 1, 1, 1, 0, 0, 0, 18])
 
 # --- Outputs 
 
@@ -60,18 +60,14 @@ IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
 
-# IC = {'position': [[0,0], [0.2,0.3]],
-#       'orientation': [1.5, 0],
-#       'speed': 0.01}
-# N = len(IC['position']) 
-
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            inputs=[in_presence], outputs=[out_da])
+            inputs=[in_presence, in_orientation], outputs=[out_da])
 
 # --- Coefficients
 
 E.set_weights(in_presence, np.array([1, 1, 1, 1]))
+E.set_weights(in_orientation, np.array([1, 1, 1, 1]))
 
 # C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
@@ -90,7 +86,7 @@ E.animation.field_options['range'] = [0, 1]
 
 # === Simulation ===========================================================
 
-# E.window.autoplay = False
+E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
 E.run()

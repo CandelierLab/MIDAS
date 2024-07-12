@@ -115,48 +115,57 @@ class Geometry:
 
       case 1:
 
-        param = np.zeros(3, dtype=np.float32)
+        param = np.zeros(4, dtype=np.float32)
+
+        # Dimension
+        param[0] = self.dimension
 
         # Arena shape
-        param[0] = self.arena.value
+        param[1] = self.arena.value
 
         # Arena size
-        param[1] = self.arena_shape[0]/2
-
-        # Arena periodicity
-        param[2] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
-
-      case 2:
-
-        param = np.zeros(5, dtype=np.float32)
-
-        # Arena shape
-        param[0] = self.arena.value
-
-        # Arena size
-        param[1] = self.arena_shape[0]/2
-        param[2] = self.arena_shape[1]/2
+        param[2] = self.arena_shape[0]/2
 
         # Arena periodicity
         param[3] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
-        param[4] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[1]
 
-      case 3:
+      case 2:
 
-        param = np.zeros(7, dtype=np.float32)
+        param = np.zeros(6, dtype=np.float32)
+
+        # Dimension
+        param[0] = self.dimension
 
         # Arena shape
-        param[0] = self.arena.value
+        param[1] = self.arena.value
 
         # Arena size
-        param[1] = self.arena_shape[0]/2
-        param[2] = self.arena_shape[1]/2
-        param[3] = self.arena_shape[2]/2
+        param[2] = self.arena_shape[0]/2
+        param[3] = self.arena_shape[1]/2
 
         # Arena periodicity
         param[4] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
         param[5] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[1]
-        param[6] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[2]
+
+      case 3:
+
+        param = np.zeros(8, dtype=np.float32)
+
+        # Dimension
+        param[0] = self.dimension
+
+        # Arena shape
+        param[1] = self.arena.value
+
+        # Arena size
+        param[2] = self.arena_shape[0]/2
+        param[3] = self.arena_shape[1]/2
+        param[4] = self.arena_shape[2]/2
+
+        # Arena periodicity
+        param[5] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[0]
+        param[6] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[1]
+        param[7] = self.periodic if self.arena==Arena.CIRCULAR else self.periodic[2]
 
     return param
 
@@ -885,6 +894,7 @@ On the cuda side the general model is decomposed in different parameter sets:
 
       [Geometry parameters]   (1 row)
 geometry
+  ├── dimension         (1)   dimension
   ├── arena             (1)   arena type
   ├── X-size            (1)   arena size in the 1st dimension
   ├── Y-size    [dim>1] (1)   arena size in the 2nd dimension
@@ -1034,7 +1044,7 @@ class CUDA:
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
-    @cuda.jit
+    @cuda.jit(cache=False)
     def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, measurements, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
@@ -1043,7 +1053,7 @@ class CUDA:
       i = cuda.grid(1)
 
       if i<p0.shape[0]:
-          
+                    
         # Dimension
         dim = p0.shape[1]
 
@@ -1074,39 +1084,39 @@ class CUDA:
         '''
 
         # Arena        
-        arena = geometry[0]
+        arena = geometry[1]
 
         match dim:
 
           case 1:
 
             # Arena shape
-            arena_X = geometry[1]
+            arena_X = geometry[2]
 
             # Arena periodicity
-            periodic_X = geometry[2]
+            periodic_X = geometry[3]
 
           case 2:
 
             # Arena shape
-            arena_X = geometry[1]
-            arena_Y = geometry[2]
-
-            # Arena periodicity
-            periodic_X = geometry[3]
-            periodic_Y = geometry[4]
-
-          case 3:
-
-            # Arena shape
-            arena_X = geometry[1]
-            arena_Y = geometry[2]
-            arena_Z = geometry[3]
+            arena_X = geometry[2]
+            arena_Y = geometry[3]
 
             # Arena periodicity
             periodic_X = geometry[4]
             periodic_Y = geometry[5]
-            periodic_Z = geometry[6]
+
+          case 3:
+
+            # Arena shape
+            arena_X = geometry[2]
+            arena_Y = geometry[3]
+            arena_Z = geometry[4]
+
+            # Arena periodicity
+            periodic_X = geometry[5]
+            periodic_Y = geometry[6]
+            periodic_Z = geometry[7]
 
         # --- Agent parameters -------------------------------------------------
         
@@ -1181,7 +1191,6 @@ class CUDA:
           # --- Shorthand arrays
 
           agent = cuda.local.array(5, nb.float32)
-          numbers = cuda.local.array(6, nb.int16)
 
           # Agent
           agent[0] = i
@@ -1190,11 +1199,6 @@ class CUDA:
           agent[3] = v0[i,0]
           agent[4] = v0[i,1]
 
-          # Numbers
-          numbers[0] = dim
-          numbers[1] = nO
-          numbers[2] = nG
-
           # Container for the weighted sum
           outBuffer = cuda.local.array(m_nO, nb.float32)
           
@@ -1202,7 +1206,7 @@ class CUDA:
 
           # Inputs local array
           vIn = cuda.local.array(m_nI, nb.float32)
-
+          
           for pi in range(nP):
   
             # Perception index
@@ -1216,32 +1220,26 @@ class CUDA:
             # Number of inputs
             nI = nG*nR*nSb*nSa
 
-            numbers[3] = nR
-            numbers[4] = nSa
-            numbers[5] = nSb
+            # --- Define parameters
+            '''
+            Parameters are fixed, they cannot be altered in the perception function)
+            '''
             
+            param = (geometry, agent, perceptions, agents, z, alpha, visible,
+                     input_fields, custom_param, m_nI, nO, nG, nR, nSa, nSb)
+
             # --- Inputs
 
             # Reset input array
             if pi>0: 
               for k in range(nI): vIn[k] = 0
             
-            vIn, measurements, rng = perception.perceive(vIn, p, numbers, agent,
-                                      geometry, agents, perceptions, custom_param,
-                                      input_fields, measurements,
-                                      z, alpha, visible,
-                                      m_nI, rng)
-
-            # if i==0:
-            #   for k in range(4):
-            #     print(pi, k, vIn[k])
-
+            # Perception function
+            vIn, measurements, rng = perception.perceive(vIn, measurements, rng, p, param)
+ 
             # --- Normalization
 
-            vIn = normalize(vIn, perceptions[p,1], numbers)
-
-            # if i==0 and pi==2:
-            #   print(vIn[0], vIn[1], vIn[2], vIn[3], abs(z0))
+            vIn = normalize(vIn, perceptions[p,1], param)
               
             # === Outputs
 
@@ -1326,7 +1324,7 @@ class CUDA:
 #   Boundary conditions
 # --------------------------------------------------------------------------
 
-@cuda.jit(device=True)
+@cuda.jit(device=True, cache=True)
 def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   '''
   Relative position and orientation between two agents
@@ -1371,7 +1369,7 @@ def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_
 
   return (z, a1-a0, True)
 
-@cuda.jit(device=True)
+@cuda.jit(device=True, cache=True)
 def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
   
   if v==0:
@@ -1455,13 +1453,13 @@ def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
 
   return (px, py, v, a)
 
-@cuda.jit(device=True)
-def normalize(vIn, ntype, numbers):
+@cuda.jit(device=True, cache=True)
+def normalize(vIn, ntype, param):
 
-  nG = numbers[2]
-  nR = numbers[3]
-  nSa = numbers[4]
-  nSb = numbers[5]
+  nG = param[i_NG]
+  nR = param[i_NR]
+  nSa = param[i_NSA]
+  nSb = param[i_NSB]
 
   match ntype:
 

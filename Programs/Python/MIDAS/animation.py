@@ -399,8 +399,9 @@ class Animation(Animation_2d):
           y = (self.engine.agents.pos[k][1] + self.shift[1])/self.engine.geom.arena_shape[1] + 0.5
 
           # Periodicity
-          if self.engine.geom.periodic[0]: x = x % 1
-          if self.engine.geom.periodic[1]: y = y % 1
+          if self.engine.geom.arena==Arena.RECTANGULAR:
+            if self.engine.geom.periodic[0]: x = x % 1
+            if self.engine.geom.periodic[1]: y = y % 1
 
           i = round(x*self.field_options['resolution'][0] - 0.5) % self.field_options['resolution'][0]
           j = round(y*self.field_options['resolution'][1] - 0.5) % self.field_options['resolution'][1]
