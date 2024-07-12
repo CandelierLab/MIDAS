@@ -941,7 +941,7 @@ actions
 
           [Group parameters]  (nG rows)
 groups
-  ├── atype           (1)     type of the agents in the group  
+  ├── atype           (1)     type of the agents in the group
   ├── nP              (1)     number of perceptions
   ├── nO              (1)     number of outputs
   ├── perceptions     (var)   ┐
@@ -989,7 +989,6 @@ input_fields
   └── field Nf-1      (var)   ┐
       ├── in_0        (1)     │ Inputs of field Nf-1
       └── ...                 ┘
-
 '''
 
 class CUDA:
@@ -1065,103 +1064,51 @@ class CUDA:
       i = cuda.grid(1)
 
       if i<p0.shape[0]:
-                    
-        # Dimension
-        # dim = p0.shape[1]
-
+                
         # Group id
         gid = int(agents[i, 0])
 
         # Agent type
         atype = int(groups[gid, 0])
         
-        # === Fixed points =====================================================
+        # === Fixed points =================================================
 
         if atype==Agent.FIXED.value:
           for j in range(dim):
             p1[i,j] = p0[i,j]
             v1[i,j] = v0[i,j]
             return
-
-        # === Extracting parameters ============================================
-
-        # --- Geometric parameters ---------------------------------------------
-        '''
-        arena_X,Y,Z:
-          circular arena: radius
-          rectangular arena: width/2, height/2, depth/2
-        periodic_X,Y,Z:
-          0: reflexive
-          1: periodic
-        '''
-
-        # Arena        
-        arena = geometry[1]
-
-        match dim:
-
-          case 1:
-
-            # Arena shape
-            arena_X = geometry[2]
-
-            # Arena periodicity
-            periodic_X = geometry[3]
-
-          case 2:
-
-            # Arena shape
-            arena_X = geometry[2]
-            arena_Y = geometry[3]
-
-            # Arena periodicity
-            periodic_X = geometry[4]
-            periodic_Y = geometry[5]
-
-          case 3:
-
-            # Arena shape
-            arena_X = geometry[2]
-            arena_Y = geometry[3]
-            arena_Z = geometry[4]
-
-            # Arena periodicity
-            periodic_X = geometry[5]
-            periodic_Y = geometry[6]
-            periodic_Z = geometry[7]
-
-        # --- Agent parameters -------------------------------------------------
         
-        # Visibility limit
-        rmax = agents[i,3]
-        dv_scale = agents[i,4]
+        # === Mobile points ================================================
+        
+        # --- Definitions --------------------------------------------------
 
-        match dim:
+        # --- Agent properties
 
-          case 1:
-            vnoise = agents[i,5]
+        agent = cuda.local.array(5, nb.float32)
 
-          case 2:
-            da_scale = agents[i,5]
-            vnoise = agents[i,6]
-            anoise = agents[i,7]
+        # Agent
+        agent[0] = i
+        agent[1] = gid
+        agent[2] = p0[i,0]
+        agent[3] = p0[i,1]
+        agent[4] = v0[i,0]
+        agent[5] = v0[i,1]
 
-          case 3:
-            da_scale = agents[i,5]
-            db_scale = agents[i,6]
-            dc_scale = agents[i,7]
-            vnoise = agents[i,8]
-            anoise = agents[i,9]
-            bnoise = agents[i,10]
-            cnoise = agents[i,11]
-
-        # === Computation ======================================================
-
-        # Agent position and velocity
         z0 = complex(p0[i,0], p0[i,1])
-                
-        # Other agents relative coordinates
+
+        # --- Other properties
+
+        nG = groups.shape[0]
+        nP = groups[gid,1]
+        nO = groups[gid,2]
+
+        # --- Other agents relative coordinates
+
         if agent_drivenity:
+          
+          # Visibility limit
+          rmax = agents[i,3]
 
           z = cuda.local.array(N, nb.complex64)
           alpha = cuda.local.array(N, nb.float32)
@@ -1178,31 +1125,13 @@ class CUDA:
             match dim:
               case 1: pass
               case 2:
-                z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y)
+                z[j], alpha[j], visible[j] = relative_2d(p0[i,0], p0[i,1], v0[i,1], p0[j,0], p0[j,1], v0[j,1], rmax, geometry)
               case 3: pass
 
         else:
           z = None
           alpha = None
           visible = None
-
-        # --- RIPO agents ------------------------------------------------------
-
-        nP = groups[gid,1]
-        nO = groups[gid,2]
-        nG = groups.shape[0]
-                  
-        # --- Shorthand arrays
-
-        agent = cuda.local.array(5, nb.float32)
-
-        # Agent
-        agent[0] = i
-        agent[1] = gid
-        agent[2] = p0[i,0]
-        agent[3] = p0[i,1]
-        agent[4] = v0[i,0]
-        agent[5] = v0[i,1]
 
         '''
         Parameters are fixed, they cannot be altered in the perception function)
@@ -1211,7 +1140,7 @@ class CUDA:
                  agent, z, alpha, visible, 
                  input_fields, custom_param)
 
-        # Container for the weighted sum
+        # Output vector
         vOut = cuda.local.array(m_nO, nb.float32)
         
         # === INPUTS
@@ -1297,15 +1226,10 @@ class CUDA:
 
         # === Update positions
 
-        # Candidate position and velocity
-        z1 = z0 + cmath.rect(V[0], V[1])
-
         # Boundary conditions
-        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, z1, V[0], V[1], arena,
-                                                      arena_X, arena_Y,
-                                                      periodic_X, periodic_Y)
+        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, V, geometry)
 
-    # Store CUDA kernels
+    # Store CUDA kernel
     self.step = CUDA_step
 
 # --------------------------------------------------------------------------
@@ -1313,14 +1237,51 @@ class CUDA:
 # --------------------------------------------------------------------------
 
 @cuda.jit(device=True, cache=True)
-def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+def relative_2d(x0, y0, a0, x1, y1, a1, rmax, geometry):
   '''
   Relative position and orientation between two agents
   The output is tuple (z, alpha, status) containing the relative complex polar
   coordinates z, the relative orientation alpha and the visibility status.
   NB: in case the distance is above rmax, (0,0,False) is returned
   '''
+
+  # --- Definitions
   
+  dim = geometry[0]
+  arena = geometry[1]
+
+  match dim:
+
+    case 1:
+
+      # Arena shape
+      arena_X = geometry[2]
+
+      # Arena periodicity
+      periodic_X = geometry[3]
+
+    case 2:
+
+      # Arena shape
+      arena_X = geometry[2]
+      arena_Y = geometry[3]
+
+      # Arena periodicity
+      periodic_X = geometry[4]
+      periodic_Y = geometry[5]
+
+    case 3:
+
+      # Arena shape
+      arena_X = geometry[2]
+      arena_Y = geometry[3]
+      arena_Z = geometry[4]
+
+      # Arena periodicity
+      periodic_X = geometry[5]
+      periodic_Y = geometry[6]
+      periodic_Z = geometry[7]
+
   if arena==Arena.CIRCULAR.value:
     '''
     Circular arena
@@ -1358,8 +1319,53 @@ def relative_2d(x0, y0, a0, x1, y1, a1, rmax, arena, arena_X, arena_Y, periodic_
   return (z, a1-a0, True)
 
 @cuda.jit(device=True, cache=True)
-def assign_2d(z0, z1, v, a, arena, arena_X, arena_Y, periodic_X, periodic_Y):
+def assign_2d(z0, V, geometry):
   
+  # --- Definitions
+  
+  dim = geometry[0]
+  arena = geometry[1]
+
+  match dim:
+
+    case 1:
+
+      # Arena shape
+      arena_X = geometry[2]
+
+      # Arena periodicity
+      periodic_X = geometry[3]
+
+    case 2:
+
+      # Arena shape
+      arena_X = geometry[2]
+      arena_Y = geometry[3]
+
+      # Arena periodicity
+      periodic_X = geometry[4]
+      periodic_Y = geometry[5]
+
+    case 3:
+
+      # Arena shape
+      arena_X = geometry[2]
+      arena_Y = geometry[3]
+      arena_Z = geometry[4]
+
+      # Arena periodicity
+      periodic_X = geometry[5]
+      periodic_Y = geometry[6]
+      periodic_Z = geometry[7]
+
+  v = V[0]
+  a = V[1]
+
+  # --- Computations
+
+  # Candidate position and velocity
+  z1 = z0 + cmath.rect(v, a)
+
   if v==0:
     return (z1.real, z1.imag, v, a)
 
