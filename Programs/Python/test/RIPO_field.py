@@ -4,14 +4,19 @@ import numpy as np
 
 from MIDAS.enums import *
 from MIDAS.polar_grid import PolarGrid
-from MIDAS.coefficients import Coefficients
 from MIDAS.engine import Engine
 
 os.system('clear')
 
+# === Parameters ===========================================================
+
+dataDir = '/home/raphael/Science/Projects/CM/MovingAgents/Data/'
+movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
+
 # === Engine ===============================================================
 
-E = Engine(periodic=[False, False])
+E = Engine()
+# E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
 E.steps = None
@@ -46,7 +51,7 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 10
+N = 100
 IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
@@ -57,7 +62,7 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # --- Coefficients
 
-E.set_weights(in_presence, np.array([1, 1, 1, 1]))
+E.set_coefficients(in_presence, np.array([1, 1, 1, 1]))
 
 # === Visualization ========================================================
 

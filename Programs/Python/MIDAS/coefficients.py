@@ -44,7 +44,7 @@ class Coefficients:
 
   def to_weights(self):
     '''
-    Export the coeffificients to a weights array
+    Export the coeffificients to an array of weights
     '''
 
     match self.engine.inputs[self.i].perception:
@@ -72,5 +72,9 @@ class Coefficients:
         return np.array(W)
       
       case Perception.ORIENTATION: 
+
+        return self.C
+      
+      case _:
 
         return self.C

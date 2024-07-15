@@ -17,7 +17,6 @@ def perceive(pIn, properties, rng, p, param, pparam):
   perceptions = param[i_PERCEPTIONS]
   rmax = perceptions[p,3]
 
-  agent = param[i_AGENT]
   agents = param[i_AGENTS]
   z = param[i_AGENTS_POSITIONS]
   alpha = param[i_AGENTS_ORIENTATIONS]

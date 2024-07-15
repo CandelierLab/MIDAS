@@ -33,14 +33,8 @@ class Perception(IntEnum):
   # Agent-dependent
   PRESENCE = 0            # Presence (count agents)
   ORIENTATION = 1         # Average orientation 
-  FIELD_AGENTS = 2        # Field
-  CUSTOM_AGENTS = 3       # Custom input
-
-  # Non agent-dependent
-  NOISE = 4               # Gaussian noise
-  WALLS = 5               # Walls
-  FIELD = 6               # Field
-  CUSTOM = 7              # Custom input
+  FIELD = 2               # Field (first field only)
+  WALL = 3                # Walls (not implemented)
 
 # === Normalization ========================================================
 

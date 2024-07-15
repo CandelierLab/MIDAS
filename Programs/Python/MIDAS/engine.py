@@ -842,7 +842,6 @@ class Engine:
       self.agents.pos = self.cuda.p0.copy_to_host()
       self.agents.vel = self.cuda.v0.copy_to_host()
     
-    # Get back properties
     if self.n_CUDA_properties:
       self.properties = self.cuda.properties.copy_to_host()
 
@@ -1085,7 +1084,7 @@ class CUDA:
 
         # --- Agent properties
 
-        agent = cuda.local.array(5, nb.float32)
+        agent = cuda.local.array(6, nb.float32)
 
         # Agent
         agent[0] = i

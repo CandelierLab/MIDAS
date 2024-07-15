@@ -4,14 +4,14 @@ import numpy as np
 
 from MIDAS.enums import *
 from MIDAS.polar_grid import PolarGrid
-from MIDAS.coefficients import Coefficients
 from MIDAS.engine import Engine
 
 os.system('clear')
 
 # === Parameters ===========================================================
 
-# movieDir = project.root + '/Movies/TAPAs/'
+dataDir = '/home/raphael/Science/Projects/CM/MovingAgents/Data/'
+movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
 
 # === Engine ===============================================================
 
@@ -20,11 +20,6 @@ E = Engine()
 
 # Number of steps
 E.steps = None
-
-# Verbose
-# E.verbose.level = Verbose.HIGH
-
-# E.verbose('outside')
 
 # === Agents ===============================================================
 
@@ -69,12 +64,13 @@ E.add_group(Agent.RIPO, N, name='agents_2',
 
 # --- Coefficients
 
-E.set_weights(in_presence_1, np.array([1, 1, 1, 1, 0, 0, 0, 0]))
-E.set_weights(in_presence_2, np.array([1, 1, 1, 1, -1, -1, -1, -1]))
+E.set_coefficients(in_presence_1, np.array([1, 1, 1, 1, 0, 0, 0, 0]))
+E.set_coefficients(in_presence_2, np.array([1, 1, 1, 1, -1, -1, -1, -1]))
 
 # === Storage ==============================================================
 
-# E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
+# E.setup_storage(dataDir + 'RIPO/test.db')
+# E.storage.db_commit_each_step = True
 
 # === Visualization ========================================================
 
@@ -85,7 +81,7 @@ E.animation.group_options['agents_2']['color'] = 'orange'
 
 # === Simulation ===========================================================
 
-# E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
+# E.window.autoplay = False
 E.run()
