@@ -46,43 +46,44 @@ out_da = E.add_output(Action.REORIENTATION,
 # out_dv = E.add_output(Action.SPEED_MODULATION,
 #                       activation = Activation.HSM_CENTERED)
 
-net = E.add_network(inputs=[in_orientation], outputs=[out_da])
+# net = E.add_network()
 
-print(net)
+# print(net)
 
-# # --- Groups
+# --- Groups
 
-# # Initial conditions
-# N = 100
-# IC = {'position': None,
-#       'orientation': None,
-#       'speed': 0.01}  
+# Initial conditions
+N = 100
+IC = {'position': None,
+      'orientation': None,
+      'speed': 0.01}  
 
-# E.add_group(Agent.RIPO, N, name='agents',
-#             initial_condition = IC)
+E.add_group(Agent.RIPO, N, name='agents',
+            initial_condition = IC,
+            inputs=[in_orientation], outputs=[out_da])
 
-# # --- Coefficients
+# --- Coefficients
 
-# # E.set_coefficients(in_presence, np.array([1, 1, 1, 1]))
-# E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
+# E.set_coefficients(in_presence, np.array([1, 1, 1, 1]))
+E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
 
-# # C = np.array([1,1,1,1, 0, 0, 0, 0])*2
+# C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
-# # === Storage ==============================================================
+# === Storage ==============================================================
 
-# # E.setup_storage(dataDir + 'RIPO/test.db')
-# # E.storage.db_commit_each_step = True
+# E.setup_storage(dataDir + 'RIPO/test.db')
+# E.storage.db_commit_each_step = True
 
-# # === Visualization ========================================================
+# === Visualization ========================================================
 
-# E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
-# E.animation.trace_duration = 10
-# # E.animation.group_options['agents']['cmap'] = 'hsv'
-# E.animation.field_options['range'] = [0, 1]
+E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
+E.animation.trace_duration = 10
+# E.animation.group_options['agents']['cmap'] = 'hsv'
+E.animation.field_options['range'] = [0, 1]
 
-# # === Simulation ===========================================================
+# === Simulation ===========================================================
 
-# # E.window.movieFile = movieDir + 'test.mp4'
+# E.window.movieFile = movieDir + 'test.mp4'
 
-# # E.window.autoplay = False
-# E.run()
+# E.window.autoplay = False
+E.run()

@@ -106,7 +106,7 @@ class Animation(Animation_2d):
       pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
 
       for i in self.l_agents:
-
+        
         # Group options
         opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
 
@@ -156,7 +156,7 @@ class Animation(Animation_2d):
             position = self.engine.agents.pos[i,:],
             radius = 0.0035,
             colors = clrs,
-            zvalue=-1
+            zvalue=0
           )
 
         else:
@@ -169,6 +169,7 @@ class Animation(Animation_2d):
             orientation = self.engine.agents.vel[i,1],
             points = pts*opt['size'],
             colors = clrs,
+            zvalue=1
           )
 
         # --- Traces
@@ -392,7 +393,7 @@ class Animation(Animation_2d):
 
         # Raw density
         Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))
-
+        
         for k in range(self.engine.agents.N):
 
           x = (self.engine.agents.pos[k][0] + self.shift[0])/self.engine.geom.arena_shape[0] + 0.5

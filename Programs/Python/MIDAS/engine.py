@@ -1077,7 +1077,7 @@ class CUDA:
           for j in range(dim):
             p1[i,j] = p0[i,j]
             v1[i,j] = v0[i,j]
-            return
+          return
         
         # === Mobile points ================================================
         
@@ -1133,101 +1133,103 @@ class CUDA:
           alpha = None
           visible = None
 
-        '''
-        Parameters are fixed, they cannot be altered in the perception function)
-        '''
-        param = (geometry, groups, agents, perceptions, actions,
-                 agent, z, alpha, visible, 
-                 input_fields, custom_param)
+        if m_nO>0:
 
-        # Output vector
-        vOut = cuda.local.array(m_nO, nb.float32)
-        
-        # === INPUTS
-
-        # Inputs local array
-        vIn = cuda.local.array(nI, nb.float32)
-        pIn = cuda.local.array(m_nIpp, nb.float32)
-        vi = 0
-        
-        for pi in range(nP):
-
-          # Perception index
-          p = int(groups[gid, pi+3])
-
-          # Grid parameters
-          nR = perceptions[p,2]
-          nSa = perceptions[p,4] if dim>1 else 1
-          nSb = perceptions[p,5] if dim>2 else 1
-
-          # Number of inputs
-          nIpp = int(nG*nR*nSb*nSa)
-
-          # --- Define parameters
           '''
           Parameters are fixed, they cannot be altered in the perception function)
           '''
+          param = (geometry, groups, agents, perceptions, actions,
+                  agent, z, alpha, visible, 
+                  input_fields, custom_param)
+
+          # Output vector
+          vOut = cuda.local.array(m_nO, nb.float32)
           
-          pparam = (m_nIpp, nO, nG, nR, nSa, nSb)
+          # === INPUTS
 
-          # === Inputs
-
-          # Reset input buffer
-          if pi>0: 
-            for k in range(nIpp): pIn[k] = 0
+          # Inputs local array
+          vIn = cuda.local.array(nI, nb.float32)
+          pIn = cuda.local.array(m_nIpp, nb.float32)
+          vi = 0
           
-          # Perception function
-          pIn, properties, rng = perception.perceive(pIn, properties, rng, p, param, pparam)
+          for pi in range(nP):
 
-          # === Normalization
+            # Perception index
+            p = int(groups[gid, pi+3])
 
-          pIn = normalize(pIn, perceptions[p,1], pparam)
+            # Grid parameters
+            nR = perceptions[p,2]
+            nSa = perceptions[p,4] if dim>1 else 1
+            nSb = perceptions[p,5] if dim>2 else 1
+
+            # Number of inputs
+            nIpp = int(nG*nR*nSb*nSa)
+
+            # --- Define parameters
+            '''
+            Parameters are fixed, they cannot be altered in the perception function)
+            '''
             
-          # === Storage
+            pparam = (m_nIpp, nO, nG, nR, nSa, nSb)
 
-          for k in range(nIpp):
-            vIn[vi+k] = pIn[k]
-          vi += nIpp
+            # === Inputs
 
-        # === OUTPUTS
+            # Reset input buffer
+            if pi>0: 
+              for k in range(nIpp): pIn[k] = 0
+            
+            # Perception function
+            pIn, properties, rng = perception.perceive(pIn, properties, rng, p, param, pparam)
 
-        match atype:
-          
-          case Agent.RIPO.value:
-            vOut, properties = MIDAS.network.run(vOut, properties, vIn, param)
+            # === Normalization
 
-        # --- Activations
+            pIn = normalize(pIn, perceptions[p,1], pparam)
+              
+            # === Storage
 
-        for oid in range(nO):
+            for k in range(nIpp):
+              vIn[vi+k] = pIn[k]
+            vi += nIpp
 
-          aid = int(groups[gid, int(nP + 3 + oid)])
-          ftype = actions[aid,1]
+          # === OUTPUTS
 
-          # --- Activation
+          match atype:
+            
+            case Agent.RIPO.value:
+              vOut, properties = MIDAS.network.run(vOut, properties, vIn, param)
 
-          match ftype:
+          # --- Activations
 
-            case Activation.IDENTITY.value:
-              pass
+          for oid in range(nO):
 
-            case Activation.HSM_POSITIVE.value:
-              vOut[oid] = 2/math.pi*math.atan(math.exp(vOut[oid]/2))
+            aid = int(groups[gid, int(nP + 3 + oid)])
+            ftype = actions[aid,1]
 
-            case Activation.HSM_CENTERED.value:
-              # output = 4/math.pi*math.atan(math.exp((vOut[oid])/2))-1
-              vOut[oid] = 4/math.pi*math.atan(math.exp(vOut[oid]/2))-1
-                
-        # === Actions (velocity updates)
+            # --- Activation
 
-        V = cuda.local.array(dim, nb.float32)
-        for d in range(dim): V[d] = v0[i,d]
+            match ftype:
 
-        V = action.update_velocities(V, vOut, param, properties, rng)
+              case Activation.IDENTITY.value:
+                pass
 
-        # === Update positions
+              case Activation.HSM_POSITIVE.value:
+                vOut[oid] = 2/math.pi*math.atan(math.exp(vOut[oid]/2))
 
-        # Boundary conditions
-        p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, V, geometry)
+              case Activation.HSM_CENTERED.value:
+                # output = 4/math.pi*math.atan(math.exp((vOut[oid])/2))-1
+                vOut[oid] = 4/math.pi*math.atan(math.exp(vOut[oid]/2))-1
+                  
+          # === Actions (velocity updates)
+
+          V = cuda.local.array(dim, nb.float32)
+          for d in range(dim): V[d] = v0[i,d]
+
+          V = action.update_velocities(V, vOut, param, properties, rng)
+
+          # === Update positions
+
+          # Boundary conditions
+          p1[i,0], p1[i,1], v1[i,0], v1[i,1] = assign_2d(z0, V, geometry)
 
     # Store CUDA kernel
     self.step = CUDA_step

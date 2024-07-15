@@ -11,7 +11,8 @@ os.system('clear')
 
 # === Parameters ===========================================================
 
-# movieDir = project.root + '/Movies/TAPAs/'
+dataDir = '/home/raphael/Science/Projects/CM/MovingAgents/Data/'
+movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
 
 # === Engine ===============================================================
 
@@ -21,16 +22,11 @@ E = Engine()
 # Number of steps
 E.steps = None
 
-# Verbose
-# E.verbose.level = Verbose.HIGH
-
-# E.verbose('outside')
-
 # === Agents ===============================================================
 
 # --- Fixed agents ---------------------------------------------------------
 
-E.add_group(Agent.FIXED, 100, name='fixed')
+E.add_group(Agent.FIXED, 2, name='fixed')
 
 # --- RIPO agents ----------------------------------------------------------
 
@@ -59,7 +55,7 @@ out_da = E.add_output(Action.REORIENTATION,
 # --- Groups
 
 # Initial conditions
-N = 100
+N = 2
 IC = {'position': None,
       'orientation': None,
       'speed': 0.01} 
@@ -74,27 +70,28 @@ E.add_group(Agent.RIPO, N, name='agents',
             rmax = None,
             inputs=[in_presence], outputs=[out_da])
 
-# --- Coefficients
+# # --- Coefficients
 
-E.set_weights(in_presence, np.array([-1, -1, -1, -1, 0.1, 0.1, 0.1, 0.1]))
+E.set_coefficients(in_presence, np.array([-1, -1, -1, -1, 0.1, 0.1, 0.1, 0.1]))
 
 # C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
 
 # === Storage ==============================================================
 
-# E.setup_storage('/home/raphael/Science/Projects/CM/MovingAgents/Data/RIPO/test.db')
+# E.setup_storage(dataDir + 'RIPO/test.db')
+# E.storage.db_commit_each_step = True
 
 # === Visualization ========================================================
 
-E.setup_animation(agents=AnimAgents.ALL)
+E.setup_animation(agents=AnimAgents.ALL, field=AnimField.DENSITY)
 E.animation.trace_duration = 10
-E.animation.group_options['fixed']['color'] = 'grey'
-E.animation.group_options['agents']['cmap'] = 'hsv'
+# E.animation.group_options['agents']['cmap'] = 'hsv'
+E.animation.field_options['range'] = [0, 0.05]
 
 # === Simulation ===========================================================
 
-# E.window.autoplay = False
 # E.window.movieFile = movieDir + 'test.mp4'
 
+E.window.autoplay = False
 E.run()
