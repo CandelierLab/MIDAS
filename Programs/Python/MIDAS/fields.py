@@ -40,9 +40,11 @@ class Fields:
     Concatenate all field inputs
     '''
 
-    for i, F in enumerate(self.field):
-      P = F.perception(**kwargs)
-      C = P if i==0 else np.concatenate((C, P), axis=1)
+    C = None
+    for I in self.engine.inputs:
+      if I.perception==Perception.FIELD:
+        P = self.field[I.field].perception(**kwargs)
+        C = P if C is None else np.concatenate((C, P), axis=1)
 
     return C
 

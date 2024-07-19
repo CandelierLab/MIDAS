@@ -703,7 +703,6 @@ class Engine:
       if I.perception==Perception.FIELD:
         field_offset += self.fields.field[I.field].nSa
 
-
     # Adjust columns size
     ncol = max([row.size for row in l_pparam])
     for i, row in enumerate(l_pparam):
