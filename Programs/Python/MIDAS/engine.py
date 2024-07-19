@@ -14,6 +14,7 @@ from numba.cuda.random import create_xoroshiro128p_states
 from Animation.Window import Window
 
 from MIDAS.enums import *
+from MIDAS.polar_grid import PolarGrid
 from MIDAS.fields import Fields
 from MIDAS.coefficients import Coefficients
 import MIDAS.network
@@ -463,6 +464,13 @@ class Engine:
 
   def add_input(self, perception, **kwargs):
 
+    # Field grids
+    match perception:
+      case Perception.FIELD:
+        nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
+        kwargs['grid'] = PolarGrid(nSa=nSa)
+
+    # Append input
     self.inputs.append(Input(perception, **kwargs))
 
     # Check agent-drivenity
@@ -1050,7 +1058,7 @@ class CUDA:
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
-    @cuda.jit(cache=True)
+    @cuda.jit(cache=False)
     def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, properties, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel

@@ -56,13 +56,16 @@ class Fields:
 
 class Field:
 
-  def __init__(self, shape=None):
+  def __init__(self, shape=None, nSa=4):
 
     self.engine = None
     self.values = None
 
     # Field image
     self.shape = None
+
+    # Field perception
+    self.nSa = nSa
 
   def initialization(self, **kwargs):
     '''
@@ -142,8 +145,6 @@ class Field:
 
     # --- Parameters
 
-    nSa = 4
-
     match self.engine.geom.arena:
       case Arena.RECTANGULAR:
         X = self.engine.geom.arena_shape[0]
@@ -179,19 +180,19 @@ class Field:
     
     # --- Values
 
-    V = np.tile(np.reshape(self.values[J % H, I % W], [-1, 1, 9]), (1, nSa, 1))
+    V = np.tile(np.reshape(self.values[J % H, I % W], [-1, 1, 9]), (1, self.nSa, 1))
 
     # --- Coefficients
 
     # Relative positions (rotated)
     Z_ = (I-x[:,None] +1j*(J-y[:,None]))*np.exp(-1j*self.engine.agents.vel[:,1])[:,None]
 
-    Z = np.tile(np.reshape(Z_, [-1, 1, 9]), (1, nSa, 1))
+    Z = np.tile(np.reshape(Z_, [-1, 1, 9]), (1, self.nSa, 1))
     A = np.angle(Z) % (2*np.pi)
 
     # Slice angles
-    theta_0_ = np.array([k*2*np.pi/nSa for k in range(nSa)])
-    theta_1_ = np.array([(k+1)*2*np.pi/nSa for k in range(nSa)])
+    theta_0_ = np.array([k*2*np.pi/self.nSa for k in range(self.nSa)])
+    theta_1_ = np.array([(k+1)*2*np.pi/self.nSa for k in range(self.nSa)])
     
     theta_0 = np.tile(theta_0_[None,:,None], (self.engine.agents.N, 1, 9))
     theta_1 = np.tile(theta_1_[None,:,None], (self.engine.agents.N, 1, 9))

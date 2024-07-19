@@ -139,7 +139,7 @@ class Animation(Animation_2d):
               cmap.range = self.boundaries['z']
               clrs = [cmap.qcolor(self.engine.agents.pos[i,2])]*2
 
-        elif isinstance(color, tuple):
+        elif isinstance(color, (tuple, list)):
           clrs = color
 
         else:
