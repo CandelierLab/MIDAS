@@ -14,6 +14,7 @@ from numba.cuda.random import create_xoroshiro128p_states
 from Animation.Window import Window
 
 from MIDAS.enums import *
+from MIDAS.fields import Fields
 from MIDAS.coefficients import Coefficients
 import MIDAS.network
 from MIDAS.storage import Storage
@@ -407,7 +408,7 @@ class Engine:
     self.geom = Geometry(dimension, **kwargs)
     self.agents = Agents(dimension)
     self.groups = Groups(dimension)
-    self.fields = None
+    self.fields = Fields(self)
     self.inputs = []
     self.outputs = []
     
@@ -621,12 +622,7 @@ class Engine:
     Add a field
     '''
 
-    if self.fields is None: 
-      warnings.warn('No Field object has been defined.')
-      return None
-
-    self.fields.add(field, **kwargs)
-    return self.fields.N-1
+    return self.fields.add(field, **kwargs)
 
   # ------------------------------------------------------------------------
   #   Setups

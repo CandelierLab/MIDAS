@@ -422,7 +422,7 @@ class Animation(Animation_2d):
       case _:
 
         if self.engine.fields is not None and self.field<self.engine.fields.N:
-          self.item['field'].image = self.engine.fields.field[self.field]
+          self.item['field'].image = self.engine.fields.field[self.field].values
 
   def stop(self):
     '''
