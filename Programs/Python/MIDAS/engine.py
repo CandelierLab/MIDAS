@@ -320,17 +320,23 @@ class Input:
     # Grid
     self.grid = kwargs['grid'] if 'grid' in kwargs else None
 
+    # Field
+    self.field = kwargs['field'] if 'field' in kwargs else 0
+
     # Weights (set after groups definitions)
     self._coefficients =  None
     self.weights = None
 
-  def get_param(self, dimension, nG, **kwargs):
+  def get_param(self, dimension, nG, field_offset, **kwargs):
     '''
     Perception parameters
     '''
    
     # Initialization
     param = [self.perception.value, self.normalization.value]
+
+    # Field offset
+    param.append(field_offset)   
 
     # Grid parameters
     if self.grid is None:
@@ -687,7 +693,16 @@ class Engine:
 
     # --- Input parameters -------------------------------------------------
 
-    l_pparam = [I.get_param(self.geom.dimension, self.groups.N) for I in self.inputs]
+    l_pparam = []
+    field_offset = 0
+    for I in self.inputs:
+
+      l_pparam.append(I.get_param(self.geom.dimension, self.groups.N, field_offset))
+
+      # Update field offset
+      if I.perception==Perception.FIELD:
+        field_offset += self.fields.field[I.field].nSa
+
 
     # Adjust columns size
     ncol = max([row.size for row in l_pparam])
@@ -927,6 +942,7 @@ agents
 perceptions
   ├── ptype           (1)     perception type
   ├── ntype           (1)     normalization type
+  ├── foffset         (1)     0 or field offset [if ptype==Perception.FIELD]
   ├── nR              (1)     ┐ number of radial region, nR = len(rZ) + 1
   ├── rmax            (1)     │
   ├── nSa     [dim>1] (1)     │ Grid definition
@@ -1132,9 +1148,9 @@ class CUDA:
               case 3: pass
 
         else:
-          z = None
-          alpha = None
-          visible = None
+          z = cuda.local.array(1, nb.complex64)
+          alpha = cuda.local.array(1, nb.float32)
+          visible = cuda.local.array(1, nb.boolean)
 
         if m_nO>0:
 
@@ -1160,10 +1176,13 @@ class CUDA:
             # Perception index
             p = int(groups[gid, pi+3])
 
+            # Field offset
+            field_offset = int(perceptions[p,2])
+
             # Grid parameters
-            nR = perceptions[p,2]
-            nSa = perceptions[p,4] if dim>1 else 1
-            nSb = perceptions[p,5] if dim>2 else 1
+            nR = perceptions[p,3]
+            nSa = perceptions[p,5] if dim>1 else 1
+            nSb = perceptions[p,6] if dim>2 else 1
 
             # Number of inputs
             nIpp = int(nG*nR*nSb*nSa)
@@ -1173,7 +1192,7 @@ class CUDA:
             Parameters are fixed, they cannot be altered in the perception function)
             '''
             
-            pparam = (m_nIpp, nO, nG, nR, nSa, nSb)
+            pparam = (m_nIpp, nO, nG, nR, nSa, nSb, field_offset)
 
             # === Inputs
 
@@ -1187,7 +1206,7 @@ class CUDA:
             # === Normalization
 
             pIn = normalize(pIn, perceptions[p,1], pparam)
-              
+
             # === Storage
 
             for k in range(nIpp):

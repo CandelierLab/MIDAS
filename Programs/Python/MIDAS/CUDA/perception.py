@@ -10,26 +10,27 @@ from MIDAS.enums import *
 @cuda.jit(device=True, cache=True)
 def perceive(pIn, properties, rng, p, param, pparam):
 
-  # --- Definitions
-
-  dim = int(param[i_GEOMETRY][0])
-
   perceptions = param[i_PERCEPTIONS]
-  rmax = perceptions[p,3]
-
-  agents = param[i_AGENTS]
-  z = param[i_AGENTS_POSITIONS]
-  alpha = param[i_AGENTS_ORIENTATIONS]
-  visible = param[i_AGENTS_VISIBILITY]
-
-  nG = pparam[ip_NG]
-  nR = pparam[ip_NR]
-  nSa = pparam[ip_NSA]
-  nSb = pparam[ip_NSB]
 
   match perceptions[p,0]:
 
     case Perception.PRESENCE.value | Perception.ORIENTATION.value:
+
+      # --- Definitions
+
+      dim = int(param[i_GEOMETRY][0])
+
+      rmax = perceptions[p,4]
+
+      agents = param[i_AGENTS]
+      z = param[i_AGENTS_POSITIONS]
+      alpha = param[i_AGENTS_ORIENTATIONS]
+      visible = param[i_AGENTS_VISIBILITY]
+
+      nG = pparam[ip_NG]
+      nR = pparam[ip_NR]
+      nSa = pparam[ip_NSA]
+      nSb = pparam[ip_NSB]
 
       if perceptions[p,0]==Perception.ORIENTATION.value:
         Cbuffer = cuda.local.array(pparam[ip_MNIPP], nb.complex64)
@@ -48,7 +49,7 @@ def perceive(pIn, properties, rng, p, param, pparam):
         ri = 0
         for k in range(nR):
           ri = k
-          if abs(z[j])<perceptions[p, dim+3+k]: break
+          if abs(z[j])<perceptions[p, dim+4+k]: break
           
         # Angular index
         ai = int((cmath.phase(z[j]) % (2*math.pi))/2/math.pi*nSa) if dim>1 else 0
@@ -78,5 +79,21 @@ def perceive(pIn, properties, rng, p, param, pparam):
 
           for ic in range(nG*nR*nSb*nSa):
             pIn[ic] = cmath.phase(Cbuffer[ic])
+
+    case Perception.FIELD.value:
+
+      # --- Definitions
+
+      agent = param[i_AGENT]
+      fields = param[i_FIELDS]
+      nSa = pparam[ip_NSA]
+      offset = pparam[ip_FIELD_OFFSET]
+
+      # Parameters
+      i = int(agent[0])
+
+      # Transfer inputs
+      for k in range(nSa):
+        pIn[k] = fields[i, k + offset]
 
   return (pIn, properties, rng)

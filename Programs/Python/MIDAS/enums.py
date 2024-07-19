@@ -130,3 +130,4 @@ ip_NG = 2
 ip_NR = 3
 ip_NSA = 4
 ip_NSB = 5
+ip_FIELD_OFFSET = 6

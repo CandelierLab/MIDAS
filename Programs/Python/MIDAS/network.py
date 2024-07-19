@@ -60,15 +60,15 @@ def run(vOut, measurements, vIn, param):
     p = int(groups[gid, pi+3])
 
     # Number of inputs
-    nR = perceptions[p,2]
-    nSa = perceptions[p,4] if dim>1 else 1
-    nSb = perceptions[p,5] if dim>2 else 1
+    nR = perceptions[p,3]
+    nSa = perceptions[p,5] if dim>1 else 1
+    nSb = perceptions[p,6] if dim>2 else 1
     nIpp = nG*nR*nSa*nSb
 
     for u in range(nO):
       for v in range(nIpp):
 
-        vOut[u] += vIn[k]*perceptions[p, int(dim + nR + 3 + v)]    
+        vOut[u] += vIn[k]*perceptions[p, int(dim + nR + 4 + v)]    
         k += 1
 
   return (vOut, measurements)

@@ -42,7 +42,7 @@ class Fields:
 
     for i, F in enumerate(self.field):
       P = F.perception(**kwargs)
-      C = P if i==0 else np.concatenate((C, P))
+      C = P if i==0 else np.concatenate((C, P), axis=1)
 
     return C
 
