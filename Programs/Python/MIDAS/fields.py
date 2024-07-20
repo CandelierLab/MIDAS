@@ -64,7 +64,7 @@ class Field:
     self.values = None
 
     # Field image
-    self.shape = None
+    self.shape = shape
 
     # Field perception
     self.nSa = nSa

@@ -196,7 +196,7 @@ class Animation(Animation_2d):
     if self.field is not AnimField.NONE:
 
       # Image container
-      self.add(image, 'field',
+      self.add(field, 'field',
               position = -self.engine.geom.arena_shape/2,
               cmap = Colormap(self.field_options['cmap'], range=self.field_options['range']),
               flip_vertical = True,
@@ -389,6 +389,9 @@ class Animation(Animation_2d):
 
     match self.field:
 
+      case AnimField.NONE:
+        pass
+
       case AnimField.DENSITY:
 
         # Raw density
@@ -421,7 +424,7 @@ class Animation(Animation_2d):
 
       case _:
 
-        if self.engine.fields is not None and self.field<self.engine.fields.N:
+        if self.engine.fields is not None and not isinstance(self.field, str) and self.field<self.engine.fields.N:
           self.item['field'].image = self.engine.fields.field[self.field].values
 
   def stop(self):
