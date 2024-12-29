@@ -1073,7 +1073,7 @@ class CUDA:
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
-    @cuda.jit(cache=True)
+    @cuda.jit(cache=False)
     def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, properties, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
@@ -1154,7 +1154,7 @@ class CUDA:
         if m_nO>0:
 
           '''
-          Parameters are fixed, they cannot be altered in the perception function)
+          Parameters are fixed, they cannot be altered in the perception function
           '''
           param = (geometry, groups, agents, perceptions, actions,
                   agent, z, alpha, visible, 
@@ -1259,7 +1259,7 @@ class CUDA:
 #   Boundary conditions
 # --------------------------------------------------------------------------
 
-@cuda.jit(device=True, cache=True)
+@cuda.jit(device=True, cache=False)
 def relative_2d(x0, y0, a0, x1, y1, a1, rmax, geometry):
   '''
   Relative position and orientation between two agents
