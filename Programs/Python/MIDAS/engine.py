@@ -833,6 +833,9 @@ class Engine:
       # Update field
       self.fields.update()
 
+    else:
+      self.cuda.input_fields = cuda.to_device(np.empty(0, dtype=np.float32))
+    
     # Double-buffer computation trick
     if i % 2:
       
@@ -1032,7 +1035,7 @@ class CUDA:
     self.perceptions = None
     self.actions = None
     self.groups = None
-    self.input_fields = None
+    self.input_fields = []
     self.custom_param = None
     self.properties = None
     
