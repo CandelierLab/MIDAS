@@ -15,8 +15,8 @@ movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
 
 # === Engine ===============================================================
 
-# E = Engine()
-E = Engine(arena=Arena.CIRCULAR)
+E = Engine()
+# E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
 E.steps = None
@@ -30,9 +30,9 @@ E.steps = None
 # polar grid
 G = PolarGrid(rZ=[], nSa=4)
 
-# in_presence = E.add_input(Perception.PRESENCE,
-#                           normalization = Normalization.SAME_GROUP,
-#                           grid = G)
+in_presence = E.add_input(Perception.PRESENCE,
+                          normalization = Normalization.SAME_GROUP,
+                          grid = G)
 
 in_orientation = E.add_input(Perception.ORIENTATION,
                              normalization = Normalization.NONE,
@@ -46,28 +46,22 @@ out_da = E.add_output(Action.REORIENTATION,
 # out_dv = E.add_output(Action.SPEED_MODULATION,
 #                       activation = Activation.HSM_CENTERED)
 
-# net = E.add_network()
-
-# print(net)
-
 # --- Groups
 
 # Initial conditions
 N = 100
 IC = {'position': None,
       'orientation': None,
-      'speed': 0.01}  
+      'speed': 0.01}
 
 E.add_group(Agent.RIPO, N, name='agents',
             initial_condition = IC,
-            inputs=[in_orientation], outputs=[out_da])
+            inputs=[in_presence, in_orientation], outputs=[out_da])
 
 # --- Coefficients
 
-# E.set_coefficients(in_presence, np.array([1, 1, 1, 1]))
+E.set_coefficients(in_presence, np.array([1, -1, -1, 1])*0.1)
 E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
-
-# C = np.array([1,1,1,1, 0, 0, 0, 0])*2
 
 # === Storage ==============================================================
 
@@ -76,10 +70,16 @@ E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
 
 # === Visualization ========================================================
 
-E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
+E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.NONE)
+
+# --- Agent display options
+
 E.animation.trace_duration = 10
 # E.animation.group_options['agents']['cmap'] = 'hsv'
-E.animation.field_options['range'] = [0, 1]
+
+# --- Field display options
+
+E.animation.field_options['range'] = [0, 0.01]
 
 # === Simulation ===========================================================
 

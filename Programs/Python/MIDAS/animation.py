@@ -48,7 +48,7 @@ class Animation(Animation_2d):
 
     self.field_options = {}
 
-    self.field_options['resolution'] = [500, 500]
+    self.field_options['resolution'] = np.array([500, 500])
     self.field_options['sigma'] = 5
     self.field_options['range'] = [0, 1]
     self.field_options['cmap'] = 'turbo'
@@ -156,7 +156,7 @@ class Animation(Animation_2d):
             position = self.engine.agents.pos[i,:],
             radius = 0.0035,
             colors = clrs,
-            zvalue=0
+            zvalue = 1
           )
 
         else:
@@ -169,7 +169,7 @@ class Animation(Animation_2d):
             orientation = self.engine.agents.vel[i,1],
             points = pts*opt['size'],
             colors = clrs,
-            zvalue=1
+            zvalue = 10
           )
 
         # --- Traces
@@ -188,7 +188,8 @@ class Animation(Animation_2d):
             orientation = 0,
             points = trace,
             colors = (None, clr),
-            thickness = 3
+            thickness = 3,
+            zvalue = 9
           )
 
     # === Field ============================================================
@@ -200,7 +201,7 @@ class Animation(Animation_2d):
               position = -self.engine.geom.arena_shape/2,
               cmap = Colormap(self.field_options['cmap'], range=self.field_options['range']),
               flip_vertical = True,
-              zvalue = -1,
+              zvalue = 0,
               )
       
       self.update_display()
@@ -415,7 +416,8 @@ class Animation(Animation_2d):
         # Gaussian smooth
         Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
 
-        self.item['field'].image = Res
+        # Update displayed field
+        self.item['field'].field = Res
 
       case AnimField.POLARITY:
 
