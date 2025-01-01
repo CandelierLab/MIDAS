@@ -197,7 +197,7 @@ class Animation(Animation_2d):
     if self.field is not AnimField.NONE:
 
       # Colormap
-      field_colormap = Colormap(self.field_options['cmap'], range=self.field_options['range'])
+      field_colormap = Colormap(self.field_options['cmap'], range=self.field_options['range'], ncolors=256)
 
       # Image container
       self.add(field, 'field',

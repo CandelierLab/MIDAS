@@ -1076,7 +1076,7 @@ class CUDA:
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
-    @cuda.jit(cache=True)
+    @cuda.jit(cache=False)
     def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, properties, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
