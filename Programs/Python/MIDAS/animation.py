@@ -196,14 +196,24 @@ class Animation(Animation_2d):
 
     if self.field is not AnimField.NONE:
 
+      # Colormap
+      field_colormap = Colormap(self.field_options['cmap'], range=self.field_options['range'])
+
       # Image container
       self.add(field, 'field',
-              position = -self.engine.geom.arena_shape/2,
-              cmap = Colormap(self.field_options['cmap'], range=self.field_options['range']),
-              flip_vertical = True,
-              zvalue = 0,
-              )
+               position = -self.engine.geom.arena_shape/2,
+               cmap = field_colormap,
+               flip_vertical = True,
+               zvalue = 0,
+               )
       
+      # Colorbar
+      self.window.information.add(colorbar, 'field_colorbar',
+                                  colormap = field_colormap,
+                                  insight = True,
+                                  height = 0.5,
+                                  nticks = 2)
+       
       self.update_display()
 
   def set_boundaries(self):
@@ -253,21 +263,21 @@ class Animation(Animation_2d):
   #   Informations
   # ------------------------------------------------------------------------
 
-  def add_info(self, agent=None):
+  # def add_info(self, agent=None):
 
-    # Define agent
-    if agent is None:
-      agent = self.info_agent
+  #   # Define agent
+  #   if agent is None:
+  #     agent = self.info_agent
 
-    # Get information
-    info = agent.information()
+  #   # Get information
+  #   info = agent.information()
 
-    self.engine.window.information.add(text, 'info',
-      stack = True,
-      string = info,
-      color = 'white',
-      fontsize = 10,
-    )
+  #   self.engine.window.information.add(text, 'info',
+  #     stack = True,
+  #     string = info,
+  #     color = 'white',
+  #     fontsize = 10,
+  #   )
 
     # match self.engine.animation.options[self.name]['dynamic_cmap']:
   
@@ -279,25 +289,16 @@ class Animation(Animation_2d):
     #     self.engine.animation.colormap.range = [1, 20]
     #     self.engine.animation.add_insight_colorbar()
 
-  def add_info_weights(self, agent=None):
-    '''
-    Information over weights displayed in a piechart style
-    '''
+  # # # def add_info_weights(self, agent=None):
+  # # #   '''
+  # # #   Information over weights displayed in a piechart style
+  # # #   '''
     
-    if agent is None:
-      agent = self.info_agent
+  # # #   if agent is None:
+  # # #     agent = self.info_agent
 
-    agent.add_info_weights()
-    agent.update_info_weights()
-
-  def add_info_colorbar(self):
-
-    pass
-    # self.add(colorbar, 'Cb',
-    #   insight = True,
-    #   height = 'fill',
-    #   nticks = 2
-    # )
+  # # #   agent.add_info_weights()
+  # # #   agent.update_info_weights()
 
   # ------------------------------------------------------------------------
   #   Updates
@@ -394,6 +395,9 @@ class Animation(Animation_2d):
         pass
 
       case AnimField.DENSITY:
+        '''
+        The 2D integral of the density should be N, the number of agents.
+        '''
 
         # Raw density
         Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))

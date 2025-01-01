@@ -70,7 +70,7 @@ E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
 
 # === Visualization ========================================================
 
-E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.NONE)
+E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
 
 # --- Agent display options
 
@@ -79,7 +79,7 @@ E.animation.trace_duration = 10
 
 # --- Field display options
 
-E.animation.field_options['range'] = [0, 0.01]
+E.animation.field_options['range'] = [0, 1/N]
 
 # === Simulation ===========================================================
 

@@ -1,7 +1,9 @@
 Visualization
-  - Replay fast forward (or bar ?)
+  - AnimField: add colorbar automatically
+  - Pie charts (if RIPO)
   - Polarization field
   - Dynamic coloring
+  - Replay, with rapid selection (fast forward or bar)
 
 ---------------------------------------------------------
 
