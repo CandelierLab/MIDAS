@@ -7,7 +7,7 @@ import numba as nb
 from numba import cuda
 from MIDAS.enums import *
 
-@cuda.jit(device=True, cache=False)
+@cuda.jit(device=True, cache=True)
 def perceive(pIn, properties, rng, p, param, pparam):
   '''
   Perception function

@@ -1076,7 +1076,7 @@ class CUDA:
     #   The CUDA kernel
     # --------------------------------------------------------------------------
     
-    @cuda.jit(cache=False)
+    @cuda.jit(cache=True)
     def CUDA_step(geometry, agents, perceptions, actions, groups, custom_param, input_fields, properties, p0, v0, p1, v1, rng):
       '''
       The CUDA kernel
@@ -1262,7 +1262,7 @@ class CUDA:
 #   Boundary conditions
 # --------------------------------------------------------------------------
 
-@cuda.jit(device=True, cache=False)
+@cuda.jit(device=True, cache=True)
 def relative_2d(x0, y0, a0, x1, y1, a1, rmax, geometry):
   '''
   Relative position and orientation between two agents
