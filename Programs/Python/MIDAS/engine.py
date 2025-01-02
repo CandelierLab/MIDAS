@@ -33,6 +33,7 @@ class Geometry:
   - Boundary conditions
   '''
 
+  # ========================================================================
   def __init__(self, dimension, **kwargs):
 
     # --- Dimension
@@ -62,6 +63,7 @@ class Geometry:
       case Arena.RECTANGULAR:
         self.periodic = kwargs['periodic'] if 'periodic' in kwargs else [True]*self.dimension
   
+  # ========================================================================
   def set_initial_positions(self, ptype, n):
     '''
     Initial positions
@@ -99,7 +101,30 @@ class Geometry:
               pos = (np.random.rand(n, self.dimension)-1/2)
               for d in range(self.dimension):
                 pos[:,d] *= self.arena_shape[d]
+
+    elif isinstance(ptype, list):
       
+      match ptype[0]:
+        
+        case 'concentrated':
+          ''' Concentration in a circle of given radius.'''
+
+          match self.dimension:
+
+            case 2:
+              u1 = np.random.rand(n)
+              u2 = np.random.rand(n)
+              pos = np.column_stack((np.sqrt(u2)*np.cos(2*np.pi*u1),
+                                     np.sqrt(u2)*np.sin(2*np.pi*u1)))*ptype[1]
+
+        case 'condensed':
+          ''' Condensed in a Gaussian density field of given size.'''
+
+          match self.dimension:
+
+            case 2:
+              pos = np.random.randn(n,2)*ptype[1]
+
     return pos
   
   def set_initial_orientations(self, orientation, n):
@@ -511,7 +536,10 @@ class Engine:
     if type(initial_condition['position']) in [type(None), str]:
       pos = self.geom.set_initial_positions(initial_condition['position'], N)
     else:
-      pos = np.array(initial_condition['position'])
+      if isinstance(initial_condition['position'][0], str):
+        pos = self.geom.set_initial_positions(initial_condition['position'], N)
+      else:
+        pos = np.array(initial_condition['position'])
 
     # --- Velocities
 
