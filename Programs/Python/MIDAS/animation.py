@@ -22,7 +22,7 @@ class Animation(Animation_2d):
                                  np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
                      disp_boundaries=False)
 
-    # --- Agents and field
+    # --- Agents and field -------------------------------------------------
 
     self.set_agents(agents)
     self.field = field
@@ -53,12 +53,17 @@ class Animation(Animation_2d):
     self.field_options['range'] = [0, 1]
     self.field_options['cmap'] = 'turbo'
 
-    # --- Misc properties
+    # --- Misc properties --------------------------------------------------
 
     self.W = self.engine.geom.arena_shape[0]
     self.H = self.engine.geom.arena_shape[1]
-    self.shift = np.zeros((2))
     self.is_running = True
+
+    # Shift and grid
+    self.shift = np.zeros((2))
+
+    self.gridsize = None
+    self.ngrid = None
 
   # ------------------------------------------------------------------------
   #   Initialization
@@ -156,7 +161,7 @@ class Animation(Animation_2d):
             position = self.engine.agents.pos[i,:],
             radius = 0.0035,
             colors = clrs,
-            zvalue = 1
+            zvalue = 2
           )
 
         else:
@@ -214,7 +219,34 @@ class Animation(Animation_2d):
                                   height = 0.5,
                                   nticks = 2)
        
-      self.update_display()
+    # === Misc display items ===============================================
+
+    # Grid
+
+    if self.gridsize is not None:
+
+      self.ngrid = np.floor(np.array([self.W, self.H])/self.gridsize).astype(int)
+
+      # Vertical lines
+      for i in range(self.ngrid[0]):
+        self.add(line, f'grid_v{i}',
+                points = [[0, 0], [0, 0]],
+                color = 'gray',
+                linestyle = ':',
+                thichness = 1,
+                zvalue = 1)
+        
+      # Horizontal lines
+      for i in range(self.ngrid[1]):
+        self.add(line, f'grid_h{i}',
+                points = [[0, 0], [0, 0]],
+                color = 'gray',
+                linestyle = ':',
+                thichness = 1,
+                zvalue = 1)
+
+    # Update display
+    self.update_display()
 
   def set_boundaries(self):
     '''
@@ -234,7 +266,8 @@ class Animation(Animation_2d):
                   position = [(bounds_x[0]+bounds_x[1])/2, (bounds_y[0]+bounds_y[1])/2],
                   radius = (bounds_x[1]-bounds_x[0])/2,
                   colors = (None, 'white'),
-                  thickness=thickness)
+                  thickness=thickness,
+                  zvalue = 1)
 
       case Arena.RECTANGULAR:
         
@@ -245,19 +278,55 @@ class Animation(Animation_2d):
 
         # X-periodicity
         if self.engine.geom.periodic[0]:
-          self.add(line, 'boundary_left', points = pts_left, color = 'grey', linestyle = '--', thickness=thickness)
-          self.add(line, 'boundary_right', points = pts_right, color = 'grey', linestyle = '--', thickness=thickness)
+          self.add(line, 'boundary_left',
+                   points = pts_left,
+                   color = 'grey',
+                   linestyle = '--',
+                   thickness=thickness,
+                   zvalue = 1)
+          self.add(line, 'boundary_right',
+                   points = pts_right,
+                   color = 'grey',
+                   linestyle = '--',
+                   thickness=thickness,
+                   zvalue = 1)
         else:
-          self.add(line, 'boundary_left', points = pts_left, color = 'white', thickness=thickness)
-          self.add(line, 'boundary_right', points = pts_right, color = 'white', thickness=thickness)
+          self.add(line, 'boundary_left',
+                   points = pts_left,
+                   color = 'white',
+                   thickness=thickness,
+                   zvalue = 1)
+          self.add(line, 'boundary_right',
+                   points = pts_right,
+                   color = 'white',
+                   thickness=thickness,
+                   zvalue = 1)
 
         # Y-periodicity
         if self.engine.geom.periodic[1]:
-          self.add(line, 'boundary_top', points = pts_top, color = 'grey', linestyle = '--', thickness=thickness)
-          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'grey', linestyle = '--', thickness=thickness)
+          self.add(line, 'boundary_top',
+                   points = pts_top,
+                   color = 'grey',
+                   linestyle = '--',
+                   thickness=thickness,
+                   zvalue = 1)
+          self.add(line, 'boundary_bottom',
+                   points = pts_bottom,
+                   color = 'grey',
+                    linestyle = '--',
+                    thickness=thickness,
+                   zvalue = 1)
         else:
-          self.add(line, 'boundary_top', points = pts_top, color = 'white', thickness=thickness)
-          self.add(line, 'boundary_bottom', points = pts_bottom, color = 'white', thickness=thickness)
+          self.add(line, 'boundary_top',
+                   points = pts_top,
+                   color = 'white',
+                   thickness=thickness,
+                   zvalue = 1)
+          self.add(line, 'boundary_bottom',
+                   points = pts_bottom,
+                   color = 'white',
+                   thickness=thickness,
+                   zvalue = 1)
 
   # ------------------------------------------------------------------------
   #   Informations
@@ -432,6 +501,22 @@ class Animation(Animation_2d):
 
         if self.engine.fields is not None and not isinstance(self.field, str) and self.field<self.engine.fields.N:
           self.item['field'].image = self.engine.fields.field[self.field].values
+
+    # === Misc =============================================================
+
+    # Grid
+
+    if self.ngrid is not None:
+
+      # Horizontal lines
+      for i in range(self.ngrid[1]):
+        yg = (i*self.gridsize + self.shift[1]) % self.H - self.H/2
+        self.item[f'grid_h{i}'].points = [[-self.W/2, yg], [self.W/2, yg]]
+
+      # Vertical lines
+      for i in range(self.ngrid[0]):
+        xg = (i*self.gridsize + self.shift[0]) % self.W - self.W/2
+        self.item[f'grid_v{i}'].points = [[xg, -self.H/2], [xg, self.H/2]]
 
   def stop(self):
     '''

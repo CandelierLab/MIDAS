@@ -15,8 +15,8 @@ movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
 
 # === Engine ===============================================================
 
-E = Engine()
-# E = Engine(arena=Arena.CIRCULAR)
+# E = Engine()
+E = Engine(arena=Arena.CIRCULAR)
 
 # Number of steps
 E.steps = None
@@ -60,8 +60,8 @@ E.add_group(Agent.RIPO, N, name='agents',
 
 # --- Coefficients
 
-E.set_coefficients(in_presence, np.array([1, -1, -1, 1])*0.1)
-E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0.1)
+E.set_coefficients(in_presence, np.array([1, 1, 1, 1])*-1)
+E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0)
 
 # === Storage ==============================================================
 
@@ -80,6 +80,10 @@ E.animation.trace_duration = 10
 # --- Field display options
 
 E.animation.field_options['range'] = [0, 1/N]
+
+# --- Grid
+
+E.animation.gridsize = 0.25
 
 # === Simulation ===========================================================
 
