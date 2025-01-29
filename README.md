@@ -1,22 +1,24 @@
 # Toolbox_MIDAS
 A python toolbox for *Multiple Information-Driven Agent Simulation* (MIDAS).
 
-It includes the RIPO and RINNO models.
-
-## Installation via Conda:
+## Installation
 
 ```
-conda install numpy scipy numba cudatoolkit matplotlib pyqt imageio[ffmpeg] colorama
+sudo apt install nvidia-cuda-toolkit
+pip3 install --upgrade pip
+pip install numpy scipy numba matplotlib pyqt6 imageio[ffmpeg] colorama screeninfo alive-progress
 ```
 
-```
-pip install screeninfo alive-progress
-```
-
-+ requires the Animation Toolbox.
++ Requires to set the Animation toolbox as an external source.
 
 To remove the low occupancy warnings:
 
 ```
-conda env config vars set NUMBA_CUDA_LOW_OCCUPANCY_WARNINGS=0
+nano ~/Science/Projects/.virtual_environments/midas/bin/activate
+```
+
+And add at the end:
+
+```
+export NUMBA_CUDA_LOW_OCCUPANCY_WARNINGS=0
 ```

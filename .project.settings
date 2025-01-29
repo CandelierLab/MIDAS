@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "path": {
+    "python": "Programs/Python",
+    "external": [
+      "Toolboxes/Animation"
+    ]
+  },
+  "git": {
+    "ignore": {
+      "paths": {
+        "Programs": false
+      }
+    }
+  }
+}
