@@ -17,7 +17,8 @@ class Arena(IntEnum):
 class Agent(IntEnum):
 
   FIXED = 0
-  RIPO = 1
+  SSP = 1
+  TSP = 2
 
 # === Coefficients sets ====================================================
 

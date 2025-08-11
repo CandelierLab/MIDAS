@@ -2,92 +2,97 @@ import os
 import time
 import numpy as np
 
-from MIDAS.enums import *
-from MIDAS.polar_grid import PolarGrid
-from MIDAS.engine import Engine
+import MIDAS
+
+# from MIDAS.enums import *
+# from MIDAS.polar_grid import PolarGrid
+# from MIDAS.engine import Engine
 
 os.system('clear')
 
-# === Parameters ===========================================================
+# ═══ Parameters ═══════════════════════════════════════════════════════════
 
-dataDir = '/home/raphael/Science/Projects/CM/MovingAgents/Data/'
-movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
+# dataDir = '/home/raphael/Science/Projects/CM/MovingAgents/Data/'
+# movieDir = '/home/raphael/Science/Projects/CM/MovingAgents/Movies/'
 
-# === Engine ===============================================================
+# ═══ Engine ═══════════════════════════════════════════════════════════════
 
-# E = Engine()
-E = Engine(arena=Arena.CIRCULAR)
+E = MIDAS.engine()
 
-# Number of steps
-E.steps = None
+# E = Engine(arena=Arena.CIRCULAR)
 
-# === Agents ===============================================================
+# # Number of steps
+# E.steps = None
 
-# --- RIPO agents ----------------------------------------------------------
+# # === Agents ===============================================================
 
-#  --- Inputs
+# ────────────────────────────────────────────────────────────────────────
 
-# polar grid
-G = PolarGrid(rZ=[], nSa=4)
+# # --- RIPO agents ----------------------------------------------------------
 
-in_presence = E.add_input(Perception.PRESENCE,
-                          normalization = Normalization.SAME_GROUP,
-                          grid = G)
+# #  --- Inputs
 
-in_orientation = E.add_input(Perception.ORIENTATION,
-                             normalization = Normalization.NONE,
-                             grid = G)
+# # polar grid
+# G = PolarGrid(rZ=[], nSa=4)
 
-# --- Outputs 
+# in_presence = E.add_input(Perception.PRESENCE,
+#                           normalization = Normalization.SAME_GROUP,
+#                           grid = G)
 
-out_da = E.add_output(Action.REORIENTATION,
-                      activation = Activation.HSM_CENTERED)
+# in_orientation = E.add_input(Perception.ORIENTATION,
+#                              normalization = Normalization.NONE,
+#                              grid = G)
 
-# out_dv = E.add_output(Action.SPEED_MODULATION,
+# # --- Outputs 
+
+# out_da = E.add_output(Action.REORIENTATION,
 #                       activation = Activation.HSM_CENTERED)
 
-# --- Groups
+# # out_dv = E.add_output(Action.SPEED_MODULATION,
+# #                       activation = Activation.HSM_CENTERED)
 
-# Initial conditions
-N = 100
-IC = {'position': None,
-      'orientation': None,
-      'speed': 0.01}
+# # --- Groups
 
-E.add_group(Agent.RIPO, N, name='agents',
-            initial_condition = IC,
-            inputs=[in_presence, in_orientation], outputs=[out_da])
+# # Initial conditions
+# N = 100
+# IC = {'position': None,
+#       'orientation': None,
+#       'speed': 0.01}
 
-# --- Coefficients
+# E.add_group(Agent.RIPO, N, name='agents',
+#             initial_condition = IC,
+#             inputs=[in_presence, in_orientation], outputs=[out_da])
 
-E.set_coefficients(in_presence, np.array([1, 1, 1, 1])*-1)
-E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0)
+# # --- Coefficients
 
-# === Storage ==============================================================
+# E.set_coefficients(in_presence, np.array([1, 1, 1, 1])*-1)
+# E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0)
 
-# E.setup_storage(dataDir + 'RIPO/test.db')
-# E.storage.db_commit_each_step = True
+# # === Storage ==============================================================
 
-# === Visualization ========================================================
+# # E.setup_storage(dataDir + 'RIPO/test.db')
+# # E.storage.db_commit_each_step = True
 
-E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
+# # === Visualization ========================================================
 
-# --- Agent display options
+# E.setup_animation(agents=AnimAgents.SUBSET_100, field=AnimField.DENSITY)
 
-E.animation.trace_duration = 10
-# E.animation.group_options['agents']['cmap'] = 'hsv'
+# # --- Agent display options
 
-# --- Field display options
+# E.animation.trace_duration = 10
+# # E.animation.group_options['agents']['cmap'] = 'hsv'
 
-E.animation.field_options['range'] = [0, 1/N]
+# # --- Field display options
 
-# --- Grid
+# E.animation.field_options['range'] = [0, 1/N]
 
-E.animation.gridsize = 0.25
+# # --- Grid
 
-# === Simulation ===========================================================
+# E.animation.gridsize = 0.25
 
-# E.window.movieFile = movieDir + 'test.mp4'
+# # === Simulation ===========================================================
 
-# E.window.autoplay = False
-E.run()
+# # E.window.movieFile = movieDir + 'test.mp4'
+
+# # E.window.autoplay = False
+# E.run()

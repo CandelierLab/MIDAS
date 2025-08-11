@@ -2,7 +2,7 @@
 import numpy as np
 
 from Animation.Window import Window
-import MIDAS.animation
+import MIDAS.engine.animation
 
 from MIDAS.enums import *
 from MIDAS.storage import Storage
@@ -83,7 +83,7 @@ class Replay():
     '''
 
     self.window = Window('MIDAS (replay)', style=style)
-    self.animation = MIDAS.animation.Animation(self, **kwargs)
+    self.animation = MIDAS.engine.animation.Animation(self, **kwargs)
     self.window.add(self.animation)
 
     # Step limit
