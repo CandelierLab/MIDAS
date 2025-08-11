@@ -1,4 +1,4 @@
-# Toolbox_MIDAS
+# MIDAS
 A python toolbox for *Multiple Information-Driven Agent Simulation* (MIDAS).
 
 ## Installation
