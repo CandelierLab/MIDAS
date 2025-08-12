@@ -17,12 +17,17 @@ os.system('clear')
 
 # ═══ Engine ═══════════════════════════════════════════════════════════════
 
+# E = MIDAS.engine(type=MIDAS.ARENA.CIRCULAR)
 E = MIDAS.engine()
+
+# Number of steps
+E.steps = 100
+
+E.display()
 
 # E = Engine(arena=Arena.CIRCULAR)
 
-# # Number of steps
-# E.steps = None
+
 
 # # === Agents ===============================================================
 

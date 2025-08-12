@@ -4,6 +4,12 @@ A python toolbox for *Multiple Information-Driven Agent Simulation* (MIDAS).
 ## Installation
 
 ```
+pip install numpy lib-anim rich alive-progress
+```
+
+## Old installation
+
+```
 sudo apt install nvidia-cuda-toolkit
 pip3 install --upgrade pip
 pip install numpy scipy numba matplotlib pyqt6 imageio[ffmpeg] colorama screeninfo alive-progress

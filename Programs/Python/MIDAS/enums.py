@@ -7,7 +7,7 @@ import numpy as np
 
 # === Arena geometries =====================================================
 
-class Arena(IntEnum):
+class ARENA(IntEnum):
   
   CIRCULAR = 0
   RECTANGULAR = 1
