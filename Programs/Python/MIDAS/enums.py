@@ -5,20 +5,36 @@ Enumerations
 from enum import Enum, IntEnum
 import numpy as np
 
-# === Arena geometries =====================================================
+# ═══ Arena geometry ═══════════════════════════════════════════════════════
 
 class ARENA(IntEnum):
   
   CIRCULAR = 0
   RECTANGULAR = 1
 
-# === Agent types ==========================================================
+# ═══ Agent types ══════════════════════════════════════════════════════════
 
 class Agent(IntEnum):
 
   FIXED = 0
   SSP = 1
   TSP = 2
+
+# ═══ Animation ════════════════════════════════════════════════════════════
+
+class ANIMATION_AGENTS(IntEnum):
+
+  NONE = 0
+  SUBSET_1 = 1
+  SUBSET_10 = 2
+  SUBSET_100 = 3
+  ALL = 100
+
+class ANIMATION_FIELD(IntEnum):
+
+  NONE = -1
+  DENSITY = -2
+  POLARITY = -3
 
 # === Coefficients sets ====================================================
 

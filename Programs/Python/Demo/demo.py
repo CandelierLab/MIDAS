@@ -18,27 +18,21 @@ os.system('clear')
 # ═══ Engine ═══════════════════════════════════════════════════════════════
 
 # E = MIDAS.engine(type=MIDAS.ARENA.CIRCULAR)
-E = MIDAS.engine()
+E = MIDAS.engine(periodic=[False, True])
 
 # Number of steps
 E.steps = 100
 
 E.display()
 
-# E = Engine(arena=Arena.CIRCULAR)
+# ═══ Agents ═══════════════════════════════════════════════════════════════
 
+# ─── I/O ───────────────────────────────────────
 
-
-# # === Agents ===============================================================
-
-# ────────────────────────────────────────────────────────────────────────
-
-# # --- RIPO agents ----------------------------------------------------------
-
-# #  --- Inputs
-
-# # polar grid
+# Polar grid
 # G = PolarGrid(rZ=[], nSa=4)
+
+# ─── Inputs
 
 # in_presence = E.add_input(Perception.PRESENCE,
 #                           normalization = Normalization.SAME_GROUP,
@@ -72,6 +66,16 @@ E.display()
 
 # E.set_coefficients(in_presence, np.array([1, 1, 1, 1])*-1)
 # E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0)
+
+# ═══ Visualization ════════════════════════════════════════════════════════
+
+E.animation = MIDAS.animation()
+
+E.animation.window.autoplay = False
+E.animation.window.show()
+
+
+
 
 # # === Storage ==============================================================
 

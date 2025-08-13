@@ -1,73 +1,249 @@
-from screeninfo import get_monitors
+'''
+MIDAS animation
+'''
+
+import numpy as np
 from scipy.ndimage import gaussian_filter
+import anim
 
-from MIDAS.enums import *
-from Animation.Animation_2d import *
-from Animation.Colormap import *
+import MIDAS
 
-class Animation(Animation_2d):
+class animation(anim.plane.canva):
 
-  def __init__(self, engine, agents=AnimAgents.NONE, field=AnimField.NONE, **kwargs):
+  # ════════════════════════════════════════════════════════════════════════
+  #                              INITIALIZATION
+  # ════════════════════════════════════════════════════════════════════════
+
+  # ────────────────────────────────────────────────────────────────────────
+  def __init__(self, 
+               engine = None,
+               agents = MIDAS.ANIMATION_AGENTS.NONE,
+               field = MIDAS.ANIMATION_FIELD.NONE,
+               title = 'MIDAS',
+               style = 'dark'):
     '''
     Constructor
     '''
 
     # Definitions
     self.engine = engine
-    self.dim = self.engine.geom.dimension
-
-    # Animation constructor
-    super().__init__(self.engine.window,
-                     boundaries=[np.array([-1, 1])*self.engine.geom.arena_shape[0]/2,
-                                 np.array([-1, 1])*self.engine.geom.arena_shape[1]/2],
-                     disp_boundaries=False)
-
-    # --- Agents and field -------------------------------------------------
-
-    self.set_agents(agents)
+    self.agents = agents
     self.field = field
 
-    # --- Agent options
+    # Window
+    self.window = anim.window(title, style=style)
 
-    # Trajectory traces
-    self.trace_duration = None
+  # ────────────────────────────────────────────────────────────────────────
+  def initialize(self):
+    
+    # ─── Setup
 
-    self.group_options = {}
+    self.dimension = self.engine.geometry.dimension
 
-    # Default group options
-    for k in self.engine.groups.names:
-      self.group_options[k] = {
-        'color': ('white', 'white'), 
-        'cmap': None,
-        'cmap_on': 'x0',
-        'cmap_dynamic': None,
-        'size': 0.007
-      }
+    # Animation constructor
+    super().__init__(self.window,
+                     boundaries=[np.array([-1, 1])*self.engine.geometry.arena.shape[0]/2,
+                                 np.array([-1, 1])*self.engine.geometry.arena.shape[1]/2],
+                     display_boundaries=False)
 
-    # --- Field options
+    # Add animation to window
+    self.window.add(self)
 
-    self.field_options = {}
+    # ─── Boundaries
+    ''' We need custom boundaries for periodic boundary conditions and circular arenas. '''
 
-    self.field_options['resolution'] = np.array([500, 500])
-    self.field_options['sigma'] = 5
-    self.field_options['range'] = [0, 1]
-    self.field_options['cmap'] = 'turbo'
+    self.set_boundaries()
 
-    # --- Misc properties --------------------------------------------------
 
-    self.W = self.engine.geom.arena_shape[0]
-    self.H = self.engine.geom.arena_shape[1]
-    self.is_running = True
 
-    # Shift and grid
-    self.shift = np.zeros((2))
+    # # --- Agents and field -------------------------------------------------
 
-    self.gridsize = None
-    self.ngrid = None
+    # self.set_agents(agents)
+    # self.field = field
 
-  # ------------------------------------------------------------------------
-  #   Initialization
-  # ------------------------------------------------------------------------
+    # # --- Agent options
+
+    # # Trajectory traces
+    # self.trace_duration = None
+
+    # self.group_options = {}
+
+    # # Default group options
+    # for k in self.engine.groups.names:
+    #   self.group_options[k] = {
+    #     'color': ('white', 'white'), 
+    #     'cmap': None,
+    #     'cmap_on': 'x0',
+    #     'cmap_dynamic': None,
+    #     'size': 0.007
+    #   }
+
+    # # --- Field options
+
+    # self.field_options = {}
+
+    # self.field_options['resolution'] = np.array([500, 500])
+    # self.field_options['sigma'] = 5
+    # self.field_options['range'] = [0, 1]
+    # self.field_options['cmap'] = 'turbo'
+
+    # # --- Misc properties --------------------------------------------------
+
+    # self.W = self.engine.geom.arena_shape[0]
+    # self.H = self.engine.geom.arena_shape[1]
+    # self.is_running = True
+
+    # # Shift and grid
+    # self.shift = np.zeros((2))
+
+    # self.gridsize = None
+    # self.ngrid = None
+
+
+    # === Agents ===========================================================
+
+    # if self.l_agents is not None:
+
+    #   # Agent's triangle shape
+    #   pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
+
+    #   for i in self.l_agents:
+        
+    #     # Group options
+    #     opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
+
+    #     # --- Color
+
+    #     # Colormap and color
+    #     if opt['cmap'] is None:
+    #       color = opt['color']
+    #     else:
+    #       color = None
+    #       cmap = Colormap(name=opt['cmap'])
+
+    #     if color is None:
+    #       match opt['cmap_on']:
+
+    #         case 'index': # Color on index
+    #           n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
+    #           cmap.range = [0, n-1]
+    #           clrs = [cmap.qcolor(i)]*2
+
+    #         case 'x0': # Color on x-position (default)
+    #           cmap.range = self.boundaries['x']
+    #           clrs = [cmap.qcolor(self.engine.agents.pos[i,0])]*2
+
+    #         case 'y0': # Color on y-position   
+    #           cmap.range = self.boundaries['y']         
+    #           clrs = [cmap.qcolor(self.engine.agents.pos[i,1])]*2
+
+    #         case 'z0': # Color on z-position            
+    #           cmap.range = self.boundaries['z']
+    #           clrs = [cmap.qcolor(self.engine.agents.pos[i,2])]*2
+
+    #     elif isinstance(color, (tuple, list)):
+    #       clrs = color
+
+    #     else:
+    #       clrs = (color, None)
+
+    #     # --- Shape
+
+    #     if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
+    #       '''
+    #       Fixed agents
+    #       '''
+
+    #       self.add(circle, i,
+    #         position = self.engine.agents.pos[i,:],
+    #         radius = 0.0035,
+    #         colors = clrs,
+    #         zvalue = 2
+    #       )
+
+    #     else:
+    #       '''
+    #       Moving agents
+    #       '''
+
+    #       self.add(polygon, i,
+    #         position =  self.engine.agents.pos[i,:],
+    #         orientation = self.engine.agents.vel[i,1],
+    #         points = pts*opt['size'],
+    #         colors = clrs,
+    #         zvalue = 10
+    #       )
+
+    #     # --- Traces
+        
+    #     if self.trace_duration is not None:
+
+    #       trace = [self.engine.agents.pos[i,:]]*self.trace_duration
+
+    #       # Semi-transparent color
+    #       clr = QColor(clrs[0])
+    #       clr.setAlpha(100)
+
+    #       # Trace paths
+    #       self.add(path, f'{i:d}_trace',
+    #         position = -self.engine.geom.arena_shape/2,
+    #         orientation = 0,
+    #         points = trace,
+    #         colors = (None, clr),
+    #         thickness = 3,
+    #         zvalue = 9
+    #       )
+
+    # # === Field ============================================================
+
+    # if self.field is not AnimField.NONE:
+
+    #   # Colormap
+    #   field_colormap = Colormap(self.field_options['cmap'], range=self.field_options['range'], ncolors=256)
+
+    #   # Image container
+    #   self.add(field, 'field',
+    #            position = -self.engine.geom.arena_shape/2,
+    #            cmap = field_colormap,
+    #            flip_vertical = True,
+    #            zvalue = 0,
+    #            )
+      
+    #   # Colorbar
+    #   self.window.information.add(colorbar, 'field_colorbar',
+    #                               colormap = field_colormap,
+    #                               insight = True,
+    #                               height = 0.5,
+    #                               nticks = 2)
+       
+    # # === Misc display items ===============================================
+
+    # # Grid
+
+    # if self.gridsize is not None:
+
+    #   self.ngrid = np.floor(np.array([self.W, self.H])/self.gridsize).astype(int)
+
+    #   # Vertical lines
+    #   for i in range(self.ngrid[0]):
+    #     self.add(line, f'grid_v{i}',
+    #             points = [[0, 0], [0, 0]],
+    #             color = 'gray',
+    #             linestyle = ':',
+    #             thichness = 1,
+    #             zvalue = 1)
+        
+    #   # Horizontal lines
+    #   for i in range(self.ngrid[1]):
+    #     self.add(line, f'grid_h{i}',
+    #             points = [[0, 0], [0, 0]],
+    #             color = 'gray',
+    #             linestyle = ':',
+    #             thichness = 1,
+    #             zvalue = 1)
+
+    # # Update display
+    # self.update_display()
 
   def set_agents(self, agents):
     '''
@@ -91,242 +267,73 @@ class Animation(Animation_2d):
       case _:
         self.l_agents = np.array(agents, dtype=int)
 
-  def initialize(self):
-    
-    # --- Boundaries
-
-    # Define padding
-
-    padding = np.max([self.group_options[k]['size'] for k in self.group_options]) if self.group_options else 0
-    self.setPadding(padding)
-
-    # Set boundaries
-    self.set_boundaries()
-
-    # === Agents ===========================================================
-
-    if self.l_agents is not None:
-
-      # Agent's triangle shape
-      pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
-
-      for i in self.l_agents:
-        
-        # Group options
-        opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
-
-        # --- Color
-
-        # Colormap and color
-        if opt['cmap'] is None:
-          color = opt['color']
-        else:
-          color = None
-          cmap = Colormap(name=opt['cmap'])
-
-        if color is None:
-          match opt['cmap_on']:
-
-            case 'index': # Color on index
-              n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
-              cmap.range = [0, n-1]
-              clrs = [cmap.qcolor(i)]*2
-
-            case 'x0': # Color on x-position (default)
-              cmap.range = self.boundaries['x']
-              clrs = [cmap.qcolor(self.engine.agents.pos[i,0])]*2
-
-            case 'y0': # Color on y-position   
-              cmap.range = self.boundaries['y']         
-              clrs = [cmap.qcolor(self.engine.agents.pos[i,1])]*2
-
-            case 'z0': # Color on z-position            
-              cmap.range = self.boundaries['z']
-              clrs = [cmap.qcolor(self.engine.agents.pos[i,2])]*2
-
-        elif isinstance(color, (tuple, list)):
-          clrs = color
-
-        else:
-          clrs = (color, None)
-
-        # --- Shape
-
-        if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
-          '''
-          Fixed agents
-          '''
-
-          self.add(circle, i,
-            position = self.engine.agents.pos[i,:],
-            radius = 0.0035,
-            colors = clrs,
-            zvalue = 2
-          )
-
-        else:
-          '''
-          Moving agents
-          '''
-
-          self.add(polygon, i,
-            position =  self.engine.agents.pos[i,:],
-            orientation = self.engine.agents.vel[i,1],
-            points = pts*opt['size'],
-            colors = clrs,
-            zvalue = 10
-          )
-
-        # --- Traces
-        
-        if self.trace_duration is not None:
-
-          trace = [self.engine.agents.pos[i,:]]*self.trace_duration
-
-          # Semi-transparent color
-          clr = QColor(clrs[0])
-          clr.setAlpha(100)
-
-          # Trace paths
-          self.add(path, f'{i:d}_trace',
-            position = -self.engine.geom.arena_shape/2,
-            orientation = 0,
-            points = trace,
-            colors = (None, clr),
-            thickness = 3,
-            zvalue = 9
-          )
-
-    # === Field ============================================================
-
-    if self.field is not AnimField.NONE:
-
-      # Colormap
-      field_colormap = Colormap(self.field_options['cmap'], range=self.field_options['range'], ncolors=256)
-
-      # Image container
-      self.add(field, 'field',
-               position = -self.engine.geom.arena_shape/2,
-               cmap = field_colormap,
-               flip_vertical = True,
-               zvalue = 0,
-               )
-      
-      # Colorbar
-      self.window.information.add(colorbar, 'field_colorbar',
-                                  colormap = field_colormap,
-                                  insight = True,
-                                  height = 0.5,
-                                  nticks = 2)
-       
-    # === Misc display items ===============================================
-
-    # Grid
-
-    if self.gridsize is not None:
-
-      self.ngrid = np.floor(np.array([self.W, self.H])/self.gridsize).astype(int)
-
-      # Vertical lines
-      for i in range(self.ngrid[0]):
-        self.add(line, f'grid_v{i}',
-                points = [[0, 0], [0, 0]],
-                color = 'gray',
-                linestyle = ':',
-                thichness = 1,
-                zvalue = 1)
-        
-      # Horizontal lines
-      for i in range(self.ngrid[1]):
-        self.add(line, f'grid_h{i}',
-                points = [[0, 0], [0, 0]],
-                color = 'gray',
-                linestyle = ':',
-                thichness = 1,
-                zvalue = 1)
-
-    # Update display
-    self.update_display()
-
+  # ────────────────────────────────────────────────────────────────────────
   def set_boundaries(self):
     '''
     Set the boundaries
     '''
 
-    bounds_x = np.array([-1, 1])*self.engine.geom.arena_shape[0]/2
-    bounds_y = np.array([-1, 1])*self.engine.geom.arena_shape[1]/2
+    # Arena
+    arena = self.engine.geometry.arena
 
-    thickness = int(get_monitors()[0].width/1920)
+    match arena.type:
 
-    match self.engine.geom.arena:
+      case MIDAS.ARENA.CIRCULAR:
 
-      case Arena.CIRCULAR:
+        self.item.boundary = anim.plane.circle(
+          position = [0, 0],
+          radius = arena.shape[0]/2,
+          stroke = 'grey',
+          color = None,
+          zvalue = 1
+        )
 
-        self.add(circle, 'boundary', 
-                  position = [(bounds_x[0]+bounds_x[1])/2, (bounds_y[0]+bounds_y[1])/2],
-                  radius = (bounds_x[1]-bounds_x[0])/2,
-                  colors = (None, 'white'),
-                  thickness=thickness,
-                  zvalue = 1)
+      case MIDAS.ARENA.RECTANGULAR:
 
-      case Arena.RECTANGULAR:
-        
-        pts_left = [[bounds_x[0], bounds_y[0]], [bounds_x[0], bounds_y[1]]]
-        pts_right = [[bounds_x[1], bounds_y[0]], [bounds_x[1], bounds_y[1]]]
-        pts_top = [[bounds_x[0], bounds_y[1]], [bounds_x[1], bounds_y[1]]]
-        pts_bottom = [[bounds_x[0], bounds_y[0]], [bounds_x[1], bounds_y[0]]]
+        bounds_x = np.array([-1, 1])*arena.shape[0]/2
+        bounds_y = np.array([-1, 1])*arena.shape[1]/2
 
-        # X-periodicity
-        if self.engine.geom.periodic[0]:
-          self.add(line, 'boundary_left',
-                   points = pts_left,
-                   color = 'grey',
-                   linestyle = '--',
-                   thickness=thickness,
-                   zvalue = 1)
-          self.add(line, 'boundary_right',
-                   points = pts_right,
-                   color = 'grey',
-                   linestyle = '--',
-                   thickness=thickness,
-                   zvalue = 1)
-        else:
-          self.add(line, 'boundary_left',
-                   points = pts_left,
-                   color = 'white',
-                   thickness=thickness,
-                   zvalue = 1)
-          self.add(line, 'boundary_right',
-                   points = pts_right,
-                   color = 'white',
-                   thickness=thickness,
-                   zvalue = 1)
+        # ─── X-axis
 
-        # Y-periodicity
-        if self.engine.geom.periodic[1]:
-          self.add(line, 'boundary_top',
-                   points = pts_top,
-                   color = 'grey',
-                   linestyle = '--',
-                   thickness=thickness,
-                   zvalue = 1)
-          self.add(line, 'boundary_bottom',
-                   points = pts_bottom,
-                   color = 'grey',
-                    linestyle = '--',
-                    thickness=thickness,
-                   zvalue = 1)
-        else:
-          self.add(line, 'boundary_top',
-                   points = pts_top,
-                   color = 'white',
-                   thickness=thickness,
-                   zvalue = 1)
-          self.add(line, 'boundary_bottom',
-                   points = pts_bottom,
-                   color = 'white',
-                   thickness=thickness,
-                   zvalue = 1)
+        # Periodicity
+        lstyle = '--' if arena.periodic[0] else '-'
+           
+        self.item.boundary_left = anim.plane.line(
+          position = [bounds_x[0], bounds_y[0]],
+          dimension = [0,  arena.shape[1]],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
+          
+        self.item.boundary_right = anim.plane.line(
+          position = [bounds_x[1], bounds_y[0]],
+          dimension = [0,  arena.shape[1]],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
+
+        # ─── Y-axis
+
+        # Periodicity
+        lstyle = '--' if arena.periodic[1] else '-'
+           
+        self.item.boundary_bottom = anim.plane.line(
+          position = [bounds_x[0], bounds_y[0]],
+          dimension = [arena.shape[0], 0],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
+          
+        self.item.boundary_top = anim.plane.line(
+          position = [bounds_x[0], bounds_y[1]],
+          dimension = [arena.shape[0], 0],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
 
   # ------------------------------------------------------------------------
   #   Informations
@@ -522,6 +529,6 @@ class Animation(Animation_2d):
     '''
     Method triggered on animation exit
     '''
-    
-    if self.is_running:
-      self.engine.end()
+    pass
+    # if self.is_running:
+    #   self.engine.end()

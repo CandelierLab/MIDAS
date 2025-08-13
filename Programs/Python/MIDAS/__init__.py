@@ -9,3 +9,4 @@ from . import core
 
 # Classes
 from .engine import engine
+from .animation import animation

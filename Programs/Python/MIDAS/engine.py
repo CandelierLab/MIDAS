@@ -49,7 +49,7 @@ class engine:
     # ─── Animation
 
     # self.window = None
-    # self.animation = None
+    self._animation = None
     # self.information = None
 
     # ─── Storage
@@ -80,4 +80,38 @@ class engine:
     return grid
 
   # ────────────────────────────────────────────────────────────────────────
-  def display(self): print(Panel(self.rich(), title='engine'))
+  def display(self): 
+
+    print(Panel(self.rich(), title='engine'))
+
+  # ════════════════════════════════════════════════════════════════════════
+  #                                PROPERTIES
+  # ════════════════════════════════════════════════════════════════════════
+   
+  # ─── animation ──────────────────────────────────────────────────────────
+  
+  @property
+  def animation(self): return self._animation
+
+  @animation.setter
+  def animation(self, a):
+
+    # Define animation
+    self._animation = a
+
+    # Define engine
+    self._animation.engine = self
+
+    # Initialize animation
+    self._animation.initialize()
+
+# W = anim.window('Line animation')
+
+# # Add animation
+# W.add(Canva)
+
+# # Allow backward animation
+# W.allow_backward = True
+# W.allow_negative_time = True
+
+# W.show()
