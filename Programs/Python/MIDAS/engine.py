@@ -56,6 +56,10 @@ class engine:
 
     self.storage = None
 
+  # ════════════════════════════════════════════════════════════════════════
+  #                                 DISPLAY
+  # ════════════════════════════════════════════════════════════════════════
+  
   # ────────────────────────────────────────────────────────────────────────
   def rich(self):
     
@@ -85,6 +89,15 @@ class engine:
     print(Panel(self.rich(), title='engine'))
 
   # ════════════════════════════════════════════════════════════════════════
+  #                                  TOOLS
+  # ════════════════════════════════════════════════════════════════════════
+  
+  # ────────────────────────────────────────────────────────────────────────
+  def polar_grid(self, radii=[], number_of_azimuths=1, number_of_altitudes=1):
+
+    return MIDAS.core.grid(self, radii, number_of_azimuths, number_of_altitudes)
+
+  # ════════════════════════════════════════════════════════════════════════
   #                                PROPERTIES
   # ════════════════════════════════════════════════════════════════════════
    
@@ -104,14 +117,3 @@ class engine:
 
     # Initialize animation
     self._animation.initialize()
-
-# W = anim.window('Line animation')
-
-# # Add animation
-# W.add(Canva)
-
-# # Allow backward animation
-# W.allow_backward = True
-# W.allow_negative_time = True
-
-# W.show()

@@ -21,8 +21,7 @@ class arena:
     # ─── Default values
 
     # Shape
-    if shape is None:
-      self.shape =  np.array([1]*self.dimension if shape is None else shape)
+    self.shape = np.array([1]*self.dimension if shape is None else shape)
 
     match self.type:
 

@@ -30,7 +30,9 @@ E.display()
 # ─── I/O ───────────────────────────────────────
 
 # Polar grid
-# G = PolarGrid(rZ=[], nSa=4)
+G = E.polar_grid(radii=[0.1], number_of_azimuths=4)
+
+G.display()
 
 # ─── Inputs
 
@@ -69,10 +71,10 @@ E.display()
 
 # ═══ Visualization ════════════════════════════════════════════════════════
 
-E.animation = MIDAS.animation()
+# E.animation = MIDAS.animation()
 
-E.animation.window.autoplay = False
-E.animation.window.show()
+# E.animation.window.autoplay = False
+# E.animation.window.show()
 
 
 

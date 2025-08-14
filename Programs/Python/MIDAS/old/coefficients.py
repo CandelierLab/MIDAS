@@ -4,7 +4,7 @@ Smart coefficients management
 
 import numpy as np
 from MIDAS.enums import *
-from MIDAS.polar_grid import PolarGrid
+from Programs.Python.MIDAS.core.polar_grid import PolarGrid
 
 class Coefficients:
 
