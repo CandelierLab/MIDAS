@@ -1,10 +1,12 @@
-Inputs & outputs (polargrid)
-Groups and agents
-Simulation engine: run, steps, timebar, end
-GPU engine
-CPU engine
-Fields
-Storage
+Fixer les définitions
+Faire marcher la simu SSP sur GPU, pour avoir la structure globale
+Affiner toutes les options:
+- Simulation engine: run, steps, timebar, end
+- I/O (polargrid)
+- Groups and agents
+- Fields
+- Storage
+- CPU engine
 
 ────────────────────────────────────────────────────────────────────────
 ────────────────────────────────────────────────────────────────────────

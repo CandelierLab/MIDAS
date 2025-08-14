@@ -27,47 +27,25 @@ E.display()
 
 # ═══ Agents ═══════════════════════════════════════════════════════════════
 
+# Group of agents
+gSSP = MIDAS.agents.SSP(E, 100, name='SSP')
+
+# Initial conditions
+gSSP.IC = {'position': None, 'orientation': None, 'speed': 0.01}
+
 # ─── I/O ───────────────────────────────────────
 
-# Polar grid
-G = E.polar_grid(radii=[0.1], number_of_azimuths=4)
-
-G.display()
+# Spatial canva
+gSSP.canva.radii = [0.1]
+gSSP.canva.number_of_azimuths = 4
 
 # ─── Inputs
 
-# in_presence = E.add_input(Perception.PRESENCE,
-#                           normalization = Normalization.SAME_GROUP,
-#                           grid = G)
+gSSP.input(MIDAS.PERCEPTION.DENSITY, MIDAS.NORMALIZATION.SAME_GROUP, coeffs = np.array([1, 1, 1, 1])*1)
 
-# in_orientation = E.add_input(Perception.ORIENTATION,
-#                              normalization = Normalization.NONE,
-#                              grid = G)
+# ─── Outputs 
 
-# # --- Outputs 
-
-# out_da = E.add_output(Action.REORIENTATION,
-#                       activation = Activation.HSM_CENTERED)
-
-# # out_dv = E.add_output(Action.SPEED_MODULATION,
-# #                       activation = Activation.HSM_CENTERED)
-
-# # --- Groups
-
-# # Initial conditions
-# N = 100
-# IC = {'position': None,
-#       'orientation': None,
-#       'speed': 0.01}
-
-# E.add_group(Agent.RIPO, N, name='agents',
-#             initial_condition = IC,
-#             inputs=[in_presence, in_orientation], outputs=[out_da])
-
-# # --- Coefficients
-
-# E.set_coefficients(in_presence, np.array([1, 1, 1, 1])*-1)
-# E.set_coefficients(in_orientation, np.array([1, 1, 1, 1])*0)
+gSSP.output(MIDAS.ACTION.REORIENTATION, activation = MIDAS.ACTIVATION.HSM_CENTERED)
 
 # ═══ Visualization ════════════════════════════════════════════════════════
 

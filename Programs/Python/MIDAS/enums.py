@@ -20,6 +20,31 @@ class Agent(IntEnum):
   SSP = 1
   TSP = 2
 
+# ═══ Perception ═══════════════════════════════════════════════════════════
+
+class PERCEPTION(IntEnum):
+
+  # Base perceptions
+  DENSITY = 1             # Presence (count agents)
+  ORIENTATION = 2         # Average orientation 
+
+  # Fields
+  FIELD = 0               # First field (alias)
+  FIELD_0 = 0             # First field
+  FIELD_1 = -1            # Second field
+  FIELD_2 = -2            # Third field
+
+  # Misc
+  WALL = 100              # Walls (not implemented)
+
+class NORMALIZATION(IntEnum):
+
+  NONE = 0                # No normalization
+  SAME_RADIUS = 1         # Normalization over zones with the same radius
+  SAME_SLICE = 2          # Normalization over zones within the same angular slice
+  SAME_GROUP = 3          # Normalization over all zones among the same group
+  ALL = 4                 # Normalization over all zones of all groups
+
 # ═══ Animation ════════════════════════════════════════════════════════════
 
 class ANIMATION_AGENTS(IntEnum):
@@ -42,26 +67,6 @@ class CoeffSet(IntEnum):
 
   IGNORE = 0
   #  PRESENCE_ATTRACTION = 1     To implement
-
-# === Perception functions =================================================
-
-class Perception(IntEnum):
-
-  # Agent-dependent
-  PRESENCE = 0            # Presence (count agents)
-  ORIENTATION = 1         # Average orientation 
-  FIELD = 2               # Field (first field only)
-  WALL = 3                # Walls (not implemented)
-
-# === Normalization ========================================================
-
-class Normalization(IntEnum):
-
-  NONE = 0                # No normalization
-  SAME_RADIUS = 1         # Normalization over zones with the same radius
-  SAME_SLICE = 2          # Normalization over zones within the same angular slice
-  SAME_GROUP = 3          # Normalization over all zones among the same group
-  ALL = 4                 # Normalization over all zones of all groups
 
 # === Actions ==============================================================
 
