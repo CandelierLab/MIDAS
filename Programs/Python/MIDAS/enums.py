@@ -14,11 +14,11 @@ class ARENA(IntEnum):
 
 # ═══ Agent types ══════════════════════════════════════════════════════════
 
-class Agent(IntEnum):
+# class Agent(IntEnum):
 
-  FIXED = 0
-  SSP = 1
-  TSP = 2
+#   FIXED = 0
+#   SSP = 1
+#   TSP = 2
 
 # ═══ Perception ═══════════════════════════════════════════════════════════
 
@@ -45,6 +45,11 @@ class NORMALIZATION(IntEnum):
   SAME_GROUP = 3          # Normalization over all zones among the same group
   ALL = 4                 # Normalization over all zones of all groups
 
+class GROUP(IntEnum):
+
+  ALL = 0                 # Perceive agents from all the groups
+  SELF = 1                # Perceive only agents from the same group
+
 # ═══ Animation ════════════════════════════════════════════════════════════
 
 class ANIMATION_AGENTS(IntEnum):
@@ -61,95 +66,95 @@ class ANIMATION_FIELD(IntEnum):
   DENSITY = -2
   POLARITY = -3
 
-# === Coefficients sets ====================================================
+# # === Coefficients sets ====================================================
 
-class CoeffSet(IntEnum):
+# class CoeffSet(IntEnum):
 
-  IGNORE = 0
-  #  PRESENCE_ATTRACTION = 1     To implement
+#   IGNORE = 0
+#   #  PRESENCE_ATTRACTION = 1     To implement
 
-# === Actions ==============================================================
+# # === Actions ==============================================================
 
-class Action(IntEnum):
+# class Action(IntEnum):
 
-  SPEED_MODULATION = 0            # Speed modulation
-  REORIENTATION = 1               # ┐ Reorientation (transverse - for easy use in 2D)
-  REORIENTATION_TRANSVERSE = 1    # │ Reorientation (transverse plane)
-  REORIENTATION_AXIAL = 1         # ┘ 
-  REORIENTATION_LONGITUDINAL = 2  # ┐ Reorientation (longitudinal plane)
-  REORIENTATION_SAGITTAL = 2      # ┘ 
-  REORIENTATION_FRONTAL = 3       # ┐ Reorientation (frontal plane)
-  REORIENTATION_CORONAL = 3       # ┘
+#   SPEED_MODULATION = 0            # Speed modulation
+#   REORIENTATION = 1               # ┐ Reorientation (transverse - for easy use in 2D)
+#   REORIENTATION_TRANSVERSE = 1    # │ Reorientation (transverse plane)
+#   REORIENTATION_AXIAL = 1         # ┘ 
+#   REORIENTATION_LONGITUDINAL = 2  # ┐ Reorientation (longitudinal plane)
+#   REORIENTATION_SAGITTAL = 2      # ┘ 
+#   REORIENTATION_FRONTAL = 3       # ┐ Reorientation (frontal plane)
+#   REORIENTATION_CORONAL = 3       # ┘
 
-# === Activation fuctions ==================================================
+# # === Activation fuctions ==================================================
 
-class Activation(IntEnum):
+# class Activation(IntEnum):
 
-  IDENTITY = 0            # No activation
-  HSM_POSITIVE = 1        # Half-softmax with output in [0,1]
-  HSM_CENTERED = 2        # Half-softmax with output in [-1,1]
+#   IDENTITY = 0            # No activation
+#   HSM_POSITIVE = 1        # Half-softmax with output in [0,1]
+#   HSM_CENTERED = 2        # Half-softmax with output in [-1,1]
 
-# === Default values =======================================================
+# # === Default values =======================================================
 
-class Default(Enum):
+# class Default(Enum):
 
-  # Agent parameters
-  vmin = 0.               # Minimal speed
-  vmax = 0.01             # Maximal speed
-  rmax = -1               # Maximal radius (negative value means no rmax)
-  dv_scale = 1            # Speed modulation scale
-  da_scale = np.pi/2      # Reorientation scale
-  db_scale = np.pi/2      # Reorientation scale
-  dc_scale = np.pi/2      # Reorientation scale
-  vnoise = 0              # Speed noise
-  anoise = 0              # Reorientation noise
-  bnoise = 0              # Reorientation noise
-  cnoise = 0              # Reorientation noise
+#   # Agent parameters
+#   vmin = 0.               # Minimal speed
+#   vmax = 0.01             # Maximal speed
+#   rmax = -1               # Maximal radius (negative value means no rmax)
+#   dv_scale = 1            # Speed modulation scale
+#   da_scale = np.pi/2      # Reorientation scale
+#   db_scale = np.pi/2      # Reorientation scale
+#   dc_scale = np.pi/2      # Reorientation scale
+#   vnoise = 0              # Speed noise
+#   anoise = 0              # Reorientation noise
+#   bnoise = 0              # Reorientation noise
+#   cnoise = 0              # Reorientation noise
 
-# === Verbose level ========================================================
+# # === Verbose level ========================================================
 
-class Verbose(IntEnum):
+# class Verbose(IntEnum):
 
-  NONE = 0
-  NORMAL = 1
-  HIGH = 2
+#   NONE = 0
+#   NORMAL = 1
+#   HIGH = 2
 
-# === Animations ===========================================================
+# # === Animations ===========================================================
 
-class AnimAgents(IntEnum):
+# class AnimAgents(IntEnum):
 
-  NONE = 0
-  ALL = 1
-  SUBSET_10 = 2
-  SUBSET_100 = 3
+#   NONE = 0
+#   ALL = 1
+#   SUBSET_10 = 2
+#   SUBSET_100 = 3
 
-class AnimField(IntEnum):
+# class AnimField(IntEnum):
 
-  NONE = -1
-  DENSITY = -2
-  POLARITY = -3
+#   NONE = -1
+#   DENSITY = -2
+#   POLARITY = -3
 
-# === Indices ==============================================================
-'''
-Do not change these values without updating the CUDA kernel
-'''
+# # === Indices ==============================================================
+# '''
+# Do not change these values without updating the CUDA kernel
+# '''
 
-i_GEOMETRY = 0
-i_GROUPS = 1
-i_AGENTS = 2
-i_PERCEPTIONS = 3
-i_ACTIONS = 4
-i_AGENT = 5
-i_AGENTS_POSITIONS = 6
-i_AGENTS_ORIENTATIONS = 7
-i_AGENTS_VISIBILITY = 8
-i_FIELDS = 9
-i_CUSTOM = 10
+# i_GEOMETRY = 0
+# i_GROUPS = 1
+# i_AGENTS = 2
+# i_PERCEPTIONS = 3
+# i_ACTIONS = 4
+# i_AGENT = 5
+# i_AGENTS_POSITIONS = 6
+# i_AGENTS_ORIENTATIONS = 7
+# i_AGENTS_VISIBILITY = 8
+# i_FIELDS = 9
+# i_CUSTOM = 10
 
-ip_MNIPP = 0
-ip_NO = 1
-ip_NG = 2
-ip_NR = 3
-ip_NSA = 4
-ip_NSB = 5
-ip_FIELD_OFFSET = 6
+# ip_MNIPP = 0
+# ip_NO = 1
+# ip_NG = 2
+# ip_NR = 3
+# ip_NSA = 4
+# ip_NSB = 5
+# ip_FIELD_OFFSET = 6

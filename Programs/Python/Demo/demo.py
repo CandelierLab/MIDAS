@@ -31,21 +31,28 @@ E.display()
 gSSP = MIDAS.agents.SSP(E, 100, name='SSP')
 
 # Initial conditions
-gSSP.IC = {'position': None, 'orientation': None, 'speed': 0.01}
+gSSP.initial.speed = 0.01
 
 # ─── I/O ───────────────────────────────────────
 
 # Spatial canva
-gSSP.canva.radii = [0.1]
-gSSP.canva.number_of_azimuths = 4
+# gSSP.canva.radii = [0.1]
+# gSSP.canva.number_of_azimuths = 4
 
 # ─── Inputs
 
-gSSP.input(MIDAS.PERCEPTION.DENSITY, MIDAS.NORMALIZATION.SAME_GROUP, coeffs = np.array([1, 1, 1, 1])*1)
+gSSP.input(MIDAS.PERCEPTION.DENSITY, 
+           normalization = MIDAS.NORMALIZATION.SAME_GROUP,
+           perceived = gSSP, 
+           coefficients = np.array([1, 1, 1, 1])*1)
 
-# ─── Outputs 
+# # # # ─── Outputs 
 
-gSSP.output(MIDAS.ACTION.REORIENTATION, activation = MIDAS.ACTIVATION.HSM_CENTERED)
+# # # gSSP.output(MIDAS.ACTION.REORIENTATION, activation = MIDAS.ACTIVATION.HSM_CENTERED)
+
+gSSP.display()
+
+# gSSP.canva.display()
 
 # ═══ Visualization ════════════════════════════════════════════════════════
 

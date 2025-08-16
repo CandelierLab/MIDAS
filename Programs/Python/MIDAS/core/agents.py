@@ -50,4 +50,6 @@ class agents:
     return s
 
   # ────────────────────────────────────────────────────────────────────────
-  def display(self): print(Panel(self.rich(title=False), title='agents'))
+  def display(self): 
+    
+    print(Panel(self.rich(title=False), title='agents'))

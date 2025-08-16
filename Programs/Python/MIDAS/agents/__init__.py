@@ -2,5 +2,5 @@
 MIDAS agents API
 '''
 
-from .SSP import *
-from .TSP import *
+from .SSP import SSP
+# from .TSP import TSP

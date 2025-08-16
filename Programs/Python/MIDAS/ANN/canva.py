@@ -1,30 +1,55 @@
 '''
-Polar grid
+ANN input canvas
 '''
 
 import numpy as np
 from rich import print
 from rich.panel import Panel
 
-class grid:
+class spatial:
 
   # ────────────────────────────────────────────────────────────────────────
-  def __init__(self, engine, radii, number_of_azimuths, number_of_altitudes):
+  def __init__(self, group, radii, number_of_azimuths, number_of_altitudes):
+
+    # Group
+    self.group = group
 
     # Dimension
-    self.dimension = engine.geometry.dimension
+    self.dimension = self.group.engine.geometry.dimension
 
     # Radii
     self.R = np.array(radii)
-    self.nR = self.R.size
-    self.rmax = self.R[-1] if self.nR else None
-
+    
     # Angular slices
     self.nAz = number_of_azimuths if self.dimension>1 else 1
     self.nAl = number_of_altitudes if self.dimension>2 else 1
 
-    # Zones
-    self.nZ = self.nR*self.nAz*self.nAl
+  @property
+  def radii(self): return self.R
+
+  @radii.setter
+  def radii(self, R): self.R = np.array(R)
+
+  @property
+  def number_of_azimuths(self): return self.nAz
+
+  @number_of_azimuths.setter
+  def number_of_azimuths(self, nAz): self.nAz = nAz
+
+  @property
+  def number_of_altitudes(self): return self.nAl
+
+  @number_of_altitudes.setter
+  def number_of_altitudes(self, nAl): self.nAl = nAl
+
+  @property
+  def nR(self): return self.R.size
+
+  @property
+  def rmax(self): return self.R[-1] if self.R.size else None
+
+  @property
+  def nIn(self): return self.nR*self.nAz*self.nAl
 
   # ────────────────────────────────────────────────────────────────────────
   def rich(self, title=True):
@@ -32,15 +57,16 @@ class grid:
     s = ''
 
     if title:
-      s += f'[b i #abcdef]{self.dimension}d polar grid[/]\n'
+      s += f'[b i #abcdef]{self.dimension}d spatial canva[/]\n'
 
     s += f'radii: {self.R}\n'
     s += f'number of azimuths: {self.nAz}\n'
-    s += f'number of altitudes: {self.nAl}'
+    s += f'number of altitudes: {self.nAl}\n'
+    s += f'number of inputs: {self.nIn}'
 
     return s
 
   # ────────────────────────────────────────────────────────────────────────
   def display(self): 
 
-    print(Panel(self.rich(title=False), title=f'{self.dimension}d polar grid'))
+    print(Panel(self.rich(title=False), title=f'{self.dimension}d spatial canva'))

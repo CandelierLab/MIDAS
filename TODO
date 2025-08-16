@@ -1,4 +1,4 @@
-Fixer les définitions
+Finalize input/output
 Faire marcher la simu SSP sur GPU, pour avoir la structure globale
 Affiner toutes les options:
 - Simulation engine: run, steps, timebar, end

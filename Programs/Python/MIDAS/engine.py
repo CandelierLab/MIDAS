@@ -89,33 +89,25 @@ class engine:
     print(Panel(self.rich(), title='engine'))
 
   # ════════════════════════════════════════════════════════════════════════
-  #                                  I/O
+  #                                 Agents
   # ════════════════════════════════════════════════════════════════════════
   
-  # ────────────────────────────────────────────────────────────────────────
-  def spatial_canva(self, radii=[], number_of_azimuths=1, number_of_altitudes=1):
+  def add_group(self, group):
+    '''
+    Add a group of agents
 
-    return MIDAS.core.grid(self, radii, number_of_azimuths, number_of_altitudes)
+    Args:
+        group (_type_): _description_
 
-  # ────────────────────────────────────────────────────────────────────────
-  def input(self, grid, perception, normalization=MIDAS.NORMALIZATION.NONE):
+    Returns:
+        _type_: _description_
+    '''
 
-    # Field grids
-    match perception:
-      case Perception.FIELD:
-        nSa = kwargs['nSa'] if 'nSa' in kwargs else 4
-        kwargs['grid'] = PolarGrid(nSa=nSa)
+    # Append group
+    self.group.append(group)
 
-    # Append input
-    self.inputs.append(Input(perception, **kwargs))
-
-    # Check agent-drivenity
-    if ('agent_drivenity' in kwargs and kwargs['agent_drivenity']) \
-      or perception in [Perception.PRESENCE, Perception.ORIENTATION]:
-
-      self.agent_drivenity = True
-
-    return len(self.inputs)-1
+    # Return group id
+    return len(self.group)-1
 
   # ════════════════════════════════════════════════════════════════════════
   #                                PROPERTIES
