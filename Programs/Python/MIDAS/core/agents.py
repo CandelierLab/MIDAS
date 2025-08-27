@@ -15,22 +15,24 @@ class agents:
   def __init__(self):
     '''
     The collection of agents is initially empty.
-    Agents have to be added via the engine.add_group method.
+    Agents have to be added via the MIDAS.engine.add_group method.
     '''
 
     # Number of agents
     self.N = 0
 
     # Groups
-    self.group = None
+    self.group = np.array([], dtype=int)
 
     # Positions and velocities
     '''
     Position are expressed in cartesian coordinates (x,y,z)
     Velocities are expressed in polar coordinates (v,alpha,beta)
     '''
-    self.pos = None
-    self.vel = None
+    self.x = np.array([])
+    self.y = np.array([])
+    self.v = np.array([])
+    self.a = np.array([])
 
   # ────────────────────────────────────────────────────────────────────────
   def rich(self, title=True):
@@ -41,7 +43,7 @@ class agents:
       s += '[b i #abcdef]agents[/]\n'
 
     # Empty set
-    if self.group is None:
+    if not self.N:
       s += '─── [i]no agent[/]'
       return s
     
@@ -53,3 +55,9 @@ class agents:
   def display(self): 
     
     print(Panel(self.rich(title=False), title='agents'))
+
+  # ────────────────────────────────────────────────────────────────────────
+  def pos(self, i): return [self.x[i], self.y[i]]
+
+  # ────────────────────────────────────────────────────────────────────────
+  def vel(self, i): return [self.v[i], self.a[i]]

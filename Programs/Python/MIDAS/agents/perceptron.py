@@ -1,5 +1,5 @@
 '''
-MIDAS agents: SSP (Spatial Sampling Perceptron)
+MIDAS agents driven by perceptrons
 '''
 
 import numpy as np
@@ -10,14 +10,14 @@ from rich.columns import Columns
 import MIDAS
 
 # ══════════════════════════════════════════════════════════════════════════
-class SSP:
+class perceptron:
 
   # ════════════════════════════════════════════════════════════════════════
   #                             Initialization
   # ════════════════════════════════════════════════════════════════════════
 
   # ────────────────────────────────────────────────────────────────────────
-  def __init__(self, engine, number, name='SSP'):
+  def __init__(self, engine, number, name='perceptron'):
     '''
     The collection of agents is initially empty.
     Agents have to be added via the engine.add_group method.
@@ -32,28 +32,43 @@ class SSP:
     # Group name
     self.name = name
 
-    # Declare group
-    self.id = self.engine.add_group(self)
+    # ─── Declare group
+
+    # Group id
+    self.id = None
+
+    # Locations in agents.pos and agents.vel
+    self.Id = None
+
+    # Add the group
+    self.engine.add_group(self)
 
     # Initial conditions
     self.initial = MIDAS.core.initial_conditions(self)
 
     # ─── Inputs
 
-    # Default input canva
-    self.canva = None
-
     # Input list
     self.l_input = []
-    
-    # 
 
+    # ─── Dynamics
+
+    self.vmin = 0
+    self.vmax = np.inf
+    
   # ════════════════════════════════════════════════════════════════════════
   #                                Display
   # ════════════════════════════════════════════════════════════════════════
 
   # ────────────────────────────────────────────────────────────────────────
-  def rich(self, title=True):
+  def rich(self, title=True, oneline=False):
+
+    # ─── One-liner
+
+    if oneline:
+      return f'[i #555555][{self.id}][/] {self.name} ([cyan]{self.N}[/])'
+    
+    # ─── Expanded display
 
     s = ''
 
@@ -77,16 +92,14 @@ class SSP:
   # ════════════════════════════════════════════════════════════════════════
 
   # ────────────────────────────────────────────────────────────────────────
-  def input(self, itype, 
-            perceived = MIDAS.GROUP.SELF, 
-            canva = None,
+  def input(self, itype, canva,
+            perceived = MIDAS.GROUP.SELF,
             coefficients = None,
             normalization = MIDAS.NORMALIZATION.NONE):
     
     # New input
-    input = MIDAS.ANN.input(self, itype, 
+    input = MIDAS.ANN.input(self, itype, canva,
                             perceived = perceived,
-                            canva = canva,
                             coefficients = coefficients,
                             normalization = normalization)
 

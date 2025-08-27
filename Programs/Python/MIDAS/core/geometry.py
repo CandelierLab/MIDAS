@@ -41,7 +41,7 @@ class arena:
       case MIDAS.ARENA.CIRCULAR:
 
         # Radius
-        self.radius = self.shape[0]
+        self.radius = self.shape[0]/2
 
         # ─── Boundary conditions
 

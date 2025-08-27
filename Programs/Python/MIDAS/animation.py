@@ -35,6 +35,9 @@ class animation(anim.plane.canva):
 
   # ────────────────────────────────────────────────────────────────────────
   def initialize(self):
+    '''
+    Initializations to perform when the engine is defined.
+    '''
     
     # ─── Setup
 
@@ -50,129 +53,216 @@ class animation(anim.plane.canva):
     self.window.add(self)
 
     # ─── Boundaries
-    ''' We need custom boundaries for periodic boundary conditions and circular arenas. '''
 
+    ''' We need custom boundaries for periodic boundary conditions and circular arenas. '''
     self.set_boundaries()
 
+    # ─── Agents
+
+    self.set_agents()
+
+    # Group parameters
+    self.group = {}
+
+    # Default group options
+    for group in self.engine.group:
+      self.group[group.name] = {
+        'color': 'white', 
+        'cmap': None,
+        'cmap_on': 'x0',
+        'cmap_dynamic': None,
+        'size': 0.007
+      }
+
+    # Trajectory traces
+    self.trace_duration = None
+
+    # ─── Field options
+
+    if self.field is not MIDAS.ANIMATION_FIELD.NONE:
+
+      self.field_options = {}
+      self.field_options['resolution'] = np.array([500, 500])
+      self.field_options['sigma'] = 5
+      self.field_options['range'] = [0, 1]
+      self.field_options['cmap'] = 'turbo'
 
 
-    # # --- Agents and field -------------------------------------------------
+  # ────────────────────────────────────────────────────────────────────────
+  def set_boundaries(self):
+    '''
+    Set the boundaries
+    '''
 
-    # self.set_agents(agents)
-    # self.field = field
+    # Arena
+    arena = self.engine.geometry.arena
 
-    # # --- Agent options
+    match arena.type:
 
-    # # Trajectory traces
-    # self.trace_duration = None
+      case MIDAS.ARENA.CIRCULAR:
 
-    # self.group_options = {}
+        self.item.boundary = anim.plane.circle(
+          position = [0, 0],
+          radius = arena.shape[0]/2,
+          stroke = 'grey',
+          color = None,
+          zvalue = 1
+        )
 
-    # # Default group options
-    # for k in self.engine.groups.names:
-    #   self.group_options[k] = {
-    #     'color': ('white', 'white'), 
-    #     'cmap': None,
-    #     'cmap_on': 'x0',
-    #     'cmap_dynamic': None,
-    #     'size': 0.007
-    #   }
+      case MIDAS.ARENA.RECTANGULAR:
 
-    # # --- Field options
+        bounds_x = np.array([-1, 1])*arena.shape[0]/2
+        bounds_y = np.array([-1, 1])*arena.shape[1]/2
 
-    # self.field_options = {}
+        # ─── X-axis
 
-    # self.field_options['resolution'] = np.array([500, 500])
-    # self.field_options['sigma'] = 5
-    # self.field_options['range'] = [0, 1]
-    # self.field_options['cmap'] = 'turbo'
+        # Periodicity
+        lstyle = '--' if arena.periodic[0] else '-'
+           
+        self.item.boundary_left = anim.plane.line(
+          position = [bounds_x[0], bounds_y[0]],
+          dimension = [0,  arena.shape[1]],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
+          
+        self.item.boundary_right = anim.plane.line(
+          position = [bounds_x[1], bounds_y[0]],
+          dimension = [0,  arena.shape[1]],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
 
-    # # --- Misc properties --------------------------------------------------
+        # ─── Y-axis
 
-    # self.W = self.engine.geom.arena_shape[0]
-    # self.H = self.engine.geom.arena_shape[1]
-    # self.is_running = True
+        # Periodicity
+        lstyle = '--' if arena.periodic[1] else '-'
+           
+        self.item.boundary_bottom = anim.plane.line(
+          position = [bounds_x[0], bounds_y[0]],
+          dimension = [arena.shape[0], 0],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
+          
+        self.item.boundary_top = anim.plane.line(
+          position = [bounds_x[0], bounds_y[1]],
+          dimension = [arena.shape[0], 0],
+          color = 'grey',
+          linestyle = lstyle,
+          thickness = 0,
+          zvalue = 1)
 
-    # # Shift and grid
-    # self.shift = np.zeros((2))
+  # ────────────────────────────────────────────────────────────────────────
+  def set_agents(self):
+    '''
+    Set the list of agents to display
+    '''
 
-    # self.gridsize = None
-    # self.ngrid = None
+    match self.agents:
 
+      case MIDAS.ANIMATION_AGENTS.NONE:
+        self.l_agents = np.array([])
 
-    # === Agents ===========================================================
+      case MIDAS.ANIMATION_AGENTS.SUBSET_1:
+        self.l_agents = np.array([0])
 
-    # if self.l_agents is not None:
+      case MIDAS.ANIMATION_AGENTS.SUBSET_10:
+        self.l_agents = np.unique(np.round(np.linspace(0, self.engine.agents.N-1, 10)).astype(int)) if self.engine.agents.N>10 else np.array(list(range(self.engine.agents.N)), dtype=int)
 
-    #   # Agent's triangle shape
-    #   pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
+      case MIDAS.ANIMATION_AGENTS.SUBSET_100:
+        self.l_agents = np.unique(np.round(np.linspace(0, self.engine.agents.N-1, 100)).astype(int)) if self.engine.agents.N>100 else np.array(list(range(self.engine.agents.N)), dtype=int)
 
-    #   for i in self.l_agents:
-        
-    #     # Group options
-    #     opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
+      case MIDAS.ANIMATION_AGENTS.ALL:
+        self.l_agents = np.array(list(range(self.engine.agents.N)), dtype=int)
 
-    #     # --- Color
+      case _:
+        self.l_agents = np.array(self.agents, dtype=int)
 
-    #     # Colormap and color
-    #     if opt['cmap'] is None:
-    #       color = opt['color']
-    #     else:
-    #       color = None
-    #       cmap = Colormap(name=opt['cmap'])
+  # ────────────────────────────────────────────────────────────────────────
+  def initial_setup(self):
 
-    #     if color is None:
-    #       match opt['cmap_on']:
+    # ─── Agents ────────────────────────────────
 
-    #         case 'index': # Color on index
-    #           n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
-    #           cmap.range = [0, n-1]
-    #           clrs = [cmap.qcolor(i)]*2
+    if self.l_agents is not None:
 
-    #         case 'x0': # Color on x-position (default)
-    #           cmap.range = self.boundaries['x']
-    #           clrs = [cmap.qcolor(self.engine.agents.pos[i,0])]*2
+      # Agent's triangle shape
+      pts = np.array([[1,0],[-0.5,0.5],[-0.5,-0.5]])
 
-    #         case 'y0': # Color on y-position   
-    #           cmap.range = self.boundaries['y']         
-    #           clrs = [cmap.qcolor(self.engine.agents.pos[i,1])]*2
+      # Colormap
+      cmap = anim.colormap(name='hsv', 
+                           range=[0,len(self.l_agents)])
 
-    #         case 'z0': # Color on z-position            
-    #           cmap.range = self.boundaries['z']
-    #           clrs = [cmap.qcolor(self.engine.agents.pos[i,2])]*2
+      for i in self.l_agents:
+               
 
-    #     elif isinstance(color, (tuple, list)):
-    #       clrs = color
+        # # Group parameters
+        # opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
 
-    #     else:
-    #       clrs = (color, None)
+        # # --- Color
 
-    #     # --- Shape
+        # # Colormap and color
+        # if opt['cmap'] is None:
+        #   color = opt['color']
+        # else:
+        #   color = None
+        #   cmap = Colormap(name=opt['cmap'])
 
-    #     if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
-    #       '''
-    #       Fixed agents
-    #       '''
+        # if color is None:
+        #   match opt['cmap_on']:
 
-    #       self.add(circle, i,
-    #         position = self.engine.agents.pos[i,:],
-    #         radius = 0.0035,
-    #         colors = clrs,
-    #         zvalue = 2
-    #       )
+        #     case 'index': # Color on index
+        #       n = np.count_nonzero(self.engine.agents.group==self.engine.agents.group[i])
+        #       cmap.range = [0, n-1]
+        #       clrs = [cmap.qcolor(i)]*2
 
-    #     else:
-    #       '''
-    #       Moving agents
-    #       '''
+        #     case 'x0': # Color on x-position (default)
+        #       cmap.range = self.boundaries['x']
+        #       clrs = [cmap.qcolor(self.engine.agents.pos[i,0])]*2
 
-    #       self.add(polygon, i,
-    #         position =  self.engine.agents.pos[i,:],
-    #         orientation = self.engine.agents.vel[i,1],
-    #         points = pts*opt['size'],
-    #         colors = clrs,
-    #         zvalue = 10
-    #       )
+        #     case 'y0': # Color on y-position   
+        #       cmap.range = self.boundaries['y']         
+        #       clrs = [cmap.qcolor(self.engine.agents.pos[i,1])]*2
+
+        #     case 'z0': # Color on z-position            
+        #       cmap.range = self.boundaries['z']
+        #       clrs = [cmap.qcolor(self.engine.agents.pos[i,2])]*2
+
+        # elif isinstance(color, (tuple, list)):
+        #   clrs = color
+
+        # else:
+        #   clrs = (color, None)
+
+        # ─── Shape
+
+        if False: #self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
+          '''
+          Fixed agents
+          '''
+
+          self.add(circle, i,
+            position = self.engine.agents.pos[i,:],
+            radius = 0.0035,
+            colors = clrs,
+            zvalue = 2
+          )
+
+        else:
+          '''
+          Moving agents
+          '''
+
+          self.item[f'agent_{i}'] = anim.plane.polygon(
+            points = pts*0.015,
+            position = self.engine.agents.pos(i),
+            orientation = self.engine.agents.a[i],
+            color = cmap.qcolor(i),
+            zvalue = 10
+          )
 
     #     # --- Traces
         
@@ -245,96 +335,7 @@ class animation(anim.plane.canva):
     # # Update display
     # self.update_display()
 
-  def set_agents(self, agents):
-    '''
-    Set the list of agents to display
-    '''
-
-    match agents:
-
-      case AnimAgents.NONE:
-        self.l_agents = []
-
-      case AnimAgents.SUBSET_10:
-        self.l_agents = np.unique(np.round(np.linspace(0, self.engine.agents.N-1, 10)).astype(int)) if self.engine.agents.N>10 else np.array(list(range(self.engine.agents.N)), dtype=int)
-
-      case AnimAgents.SUBSET_100:
-        self.l_agents = np.unique(np.round(np.linspace(0, self.engine.agents.N-1, 100)).astype(int)) if self.engine.agents.N>100 else np.array(list(range(self.engine.agents.N)), dtype=int)
-
-      case AnimAgents.ALL:
-        self.l_agents = np.array(list(range(self.engine.agents.N)), dtype=int)
-
-      case _:
-        self.l_agents = np.array(agents, dtype=int)
-
-  # ────────────────────────────────────────────────────────────────────────
-  def set_boundaries(self):
-    '''
-    Set the boundaries
-    '''
-
-    # Arena
-    arena = self.engine.geometry.arena
-
-    match arena.type:
-
-      case MIDAS.ARENA.CIRCULAR:
-
-        self.item.boundary = anim.plane.circle(
-          position = [0, 0],
-          radius = arena.shape[0]/2,
-          stroke = 'grey',
-          color = None,
-          zvalue = 1
-        )
-
-      case MIDAS.ARENA.RECTANGULAR:
-
-        bounds_x = np.array([-1, 1])*arena.shape[0]/2
-        bounds_y = np.array([-1, 1])*arena.shape[1]/2
-
-        # ─── X-axis
-
-        # Periodicity
-        lstyle = '--' if arena.periodic[0] else '-'
-           
-        self.item.boundary_left = anim.plane.line(
-          position = [bounds_x[0], bounds_y[0]],
-          dimension = [0,  arena.shape[1]],
-          color = 'grey',
-          linestyle = lstyle,
-          thickness = 0,
-          zvalue = 1)
-          
-        self.item.boundary_right = anim.plane.line(
-          position = [bounds_x[1], bounds_y[0]],
-          dimension = [0,  arena.shape[1]],
-          color = 'grey',
-          linestyle = lstyle,
-          thickness = 0,
-          zvalue = 1)
-
-        # ─── Y-axis
-
-        # Periodicity
-        lstyle = '--' if arena.periodic[1] else '-'
-           
-        self.item.boundary_bottom = anim.plane.line(
-          position = [bounds_x[0], bounds_y[0]],
-          dimension = [arena.shape[0], 0],
-          color = 'grey',
-          linestyle = lstyle,
-          thickness = 0,
-          zvalue = 1)
-          
-        self.item.boundary_top = anim.plane.line(
-          position = [bounds_x[0], bounds_y[1]],
-          dimension = [arena.shape[0], 0],
-          color = 'grey',
-          linestyle = lstyle,
-          thickness = 0,
-          zvalue = 1)
-
+  
   # ------------------------------------------------------------------------
   #   Informations
   # ------------------------------------------------------------------------
@@ -376,10 +377,11 @@ class animation(anim.plane.canva):
   # # #   agent.add_info_weights()
   # # #   agent.update_info_weights()
 
-  # ------------------------------------------------------------------------
-  #   Updates
-  # ------------------------------------------------------------------------
+  # ════════════════════════════════════════════════════════════════════════
+  #                                UPDATE
+  # ════════════════════════════════════════════════════════════════════════
 
+  # ────────────────────────────────────────────────────────────────────────
   def update(self, t):
     '''
     Update method
@@ -391,139 +393,130 @@ class animation(anim.plane.canva):
     # Compute step
     self.engine.step(t.step)
 
-    # Update shift
-    self.update_shift()
-
     #  Update display
     self.update_display(t=t)
 
-  def update_shift(self, **kwargs):
-    '''
-    Update the display shift
-    '''
-
-    pass
-
+  # ────────────────────────────────────────────────────────────────────────
   def update_display(self, **kwargs):
     '''
     Update display
     '''
     
-    # === Agents ===========================================================
+    # ─── Agents
 
     if self.l_agents is not None:
 
-      # Positions
-      x = self.engine.agents.pos[:,0] + self.shift[0]
-      y = self.engine.agents.pos[:,1] + self.shift[1]
+      # # # # Positions
+      # # # x = self.engine.agents.pos[:,0] + self.shift[0]
+      # # # y = self.engine.agents.pos[:,1] + self.shift[1]
 
-      # Periodicity
-      if self.engine.geom.arena==Arena.RECTANGULAR:
-        if self.engine.geom.periodic[0]: x = ((x + self.W/2) % self.W) - self.W/2
-        if self.engine.geom.periodic[1]: y = ((y + self.H/2) % self.H) - self.H/2
+      # # # # Periodicity
+      # # # if self.engine.geom.arena==Arena.RECTANGULAR:
+      # # #   if self.engine.geom.periodic[0]: x = ((x + self.W/2) % self.W) - self.W/2
+      # # #   if self.engine.geom.periodic[1]: y = ((y + self.H/2) % self.H) - self.H/2
 
       for i in self.l_agents:
 
         # Skip fixed agents
-        if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED: continue
+        # if self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED: continue
 
         # Position
-        self.item[i].position = [x[i], y[i]]
+        self.item[f'agent_{i}'].position = self.engine.agents.pos(i)
 
         # Orientation
-        self.item[i].orientation = self.engine.agents.vel[i,1]
+        self.item[f'agent_{i}'].orientation = self.engine.agents.a[i]
 
-        # --- Traces
+        # # # # --- Traces
 
-        if self.trace_duration is not None:
+        # # # if self.trace_duration is not None:
 
-          # Previous trace
-          trace = np.array(self.item[f'{i:d}_trace'].points)
+        # # #   # Previous trace
+        # # #   trace = np.array(self.item[f'{i:d}_trace'].points)
 
-          # Roll new trace
-          trace = np.roll(trace, 1, axis=0)
-          trace[0,0] = x[i]
-          trace[0,1] = y[i]
+        # # #   # Roll new trace
+        # # #   trace = np.roll(trace, 1, axis=0)
+        # # #   trace[0,0] = x[i]
+        # # #   trace[0,1] = y[i]
 
-          # Periodic boundary conditions
-          if self.engine.geom.arena==Arena.RECTANGULAR:
+        # # #   # Periodic boundary conditions
+        # # #   if self.engine.geom.arena==Arena.RECTANGULAR:
           
-            if self.engine.geom.periodic[0]:
-              trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geom.arena_shape[0], axis=0)
-              I = np.logical_or(trace[:,0]<-self.engine.geom.arena_shape[0]/2, trace[:,0]>self.engine.geom.arena_shape[0]/2)
-              trace[I,0] = np.nan
-              trace[I,1] = np.nan
+        # # #     if self.engine.geom.periodic[0]:
+        # # #       trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geom.arena_shape[0], axis=0)
+        # # #       I = np.logical_or(trace[:,0]<-self.engine.geom.arena_shape[0]/2, trace[:,0]>self.engine.geom.arena_shape[0]/2)
+        # # #       trace[I,0] = np.nan
+        # # #       trace[I,1] = np.nan
 
-            if self.engine.geom.periodic[1]:
-              trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geom.arena_shape[1], axis=0)
-              I = np.logical_or(trace[:,1]<-self.engine.geom.arena_shape[1]/2, trace[:,1]>self.engine.geom.arena_shape[1]/2)
-              trace[I,0] = np.nan
-              trace[I,1] = np.nan
+        # # #     if self.engine.geom.periodic[1]:
+        # # #       trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geom.arena_shape[1], axis=0)
+        # # #       I = np.logical_or(trace[:,1]<-self.engine.geom.arena_shape[1]/2, trace[:,1]>self.engine.geom.arena_shape[1]/2)
+        # # #       trace[I,0] = np.nan
+        # # #       trace[I,1] = np.nan
             
-          # Update trace
-          self.item[f'{i:d}_trace'].points = trace
+        # # #   # Update trace
+        # # #   self.item[f'{i:d}_trace'].points = trace
 
-    # === Field ============================================================
+    # # # # === Field ============================================================
 
-    match self.field:
+    # # # match self.field:
 
-      case AnimField.NONE:
-        pass
+    # # #   case AnimField.NONE:
+    # # #     pass
 
-      case AnimField.DENSITY:
-        '''
-        The 2D integral of the density should be N, the number of agents.
-        '''
+    # # #   case AnimField.DENSITY:
+    # # #     '''
+    # # #     The 2D integral of the density should be N, the number of agents.
+    # # #     '''
 
-        # Raw density
-        Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))
+    # # #     # Raw density
+    # # #     Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))
         
-        for k in range(self.engine.agents.N):
+    # # #     for k in range(self.engine.agents.N):
 
-          x = (self.engine.agents.pos[k][0] + self.shift[0])/self.engine.geom.arena_shape[0] + 0.5
-          y = (self.engine.agents.pos[k][1] + self.shift[1])/self.engine.geom.arena_shape[1] + 0.5
+    # # #       x = (self.engine.agents.pos[k][0] + self.shift[0])/self.engine.geom.arena_shape[0] + 0.5
+    # # #       y = (self.engine.agents.pos[k][1] + self.shift[1])/self.engine.geom.arena_shape[1] + 0.5
 
-          # Periodicity
-          if self.engine.geom.arena==Arena.RECTANGULAR:
-            if self.engine.geom.periodic[0]: x = x % 1
-            if self.engine.geom.periodic[1]: y = y % 1
+    # # #       # Periodicity
+    # # #       if self.engine.geom.arena==Arena.RECTANGULAR:
+    # # #         if self.engine.geom.periodic[0]: x = x % 1
+    # # #         if self.engine.geom.periodic[1]: y = y % 1
 
-          i = round(x*self.field_options['resolution'][0] - 0.5) % self.field_options['resolution'][0]
-          j = round(y*self.field_options['resolution'][1] - 0.5) % self.field_options['resolution'][1]
+    # # #       i = round(x*self.field_options['resolution'][0] - 0.5) % self.field_options['resolution'][0]
+    # # #       j = round(y*self.field_options['resolution'][1] - 0.5) % self.field_options['resolution'][1]
 
-          Img[j,i] += 1
+    # # #       Img[j,i] += 1
           
-        # Gaussian smooth
-        Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
+    # # #     # Gaussian smooth
+    # # #     Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
 
-        # Update displayed field
-        self.item['field'].field = Res
+    # # #     # Update displayed field
+    # # #     self.item['field'].field = Res
 
-      case AnimField.POLARITY:
+    # # #   case AnimField.POLARITY:
 
-        # !! TODO !!
-        pass
+    # # #     # !! TODO !!
+    # # #     pass
 
-      case _:
+    # # #   case _:
 
-        if self.engine.fields is not None and not isinstance(self.field, str) and self.field<self.engine.fields.N:
-          self.item['field'].image = self.engine.fields.field[self.field].values
+    # # #     if self.engine.fields is not None and not isinstance(self.field, str) and self.field<self.engine.fields.N:
+    # # #       self.item['field'].image = self.engine.fields.field[self.field].values
 
-    # === Misc =============================================================
+    # # === Misc =============================================================
 
-    # Grid
+    # # Grid
 
-    if self.ngrid is not None:
+    # if self.ngrid is not None:
 
-      # Horizontal lines
-      for i in range(self.ngrid[1]):
-        yg = (i*self.gridsize + self.shift[1]) % self.H - self.H/2
-        self.item[f'grid_h{i}'].points = [[-self.W/2, yg], [self.W/2, yg]]
+    #   # Horizontal lines
+    #   for i in range(self.ngrid[1]):
+    #     yg = (i*self.gridsize + self.shift[1]) % self.H - self.H/2
+    #     self.item[f'grid_h{i}'].points = [[-self.W/2, yg], [self.W/2, yg]]
 
-      # Vertical lines
-      for i in range(self.ngrid[0]):
-        xg = (i*self.gridsize + self.shift[0]) % self.W - self.W/2
-        self.item[f'grid_v{i}'].points = [[xg, -self.H/2], [xg, self.H/2]]
+    #   # Vertical lines
+    #   for i in range(self.ngrid[0]):
+    #     xg = (i*self.gridsize + self.shift[0]) % self.W - self.W/2
+    #     self.item[f'grid_v{i}'].points = [[xg, -self.H/2], [xg, self.H/2]]
 
   def stop(self):
     '''

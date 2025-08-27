@@ -17,48 +17,49 @@ os.system('clear')
 
 # ═══ Engine ═══════════════════════════════════════════════════════════════
 
-# E = MIDAS.engine(type=MIDAS.ARENA.CIRCULAR)
-E = MIDAS.engine(periodic=[False, True])
+E = MIDAS.engine(type=MIDAS.ARENA.CIRCULAR)
+# E = MIDAS.engine(periodic=[True, True])
 
 # Number of steps
 E.steps = 100
 
-E.display()
-
 # ═══ Agents ═══════════════════════════════════════════════════════════════
 
 # Group of agents
-gSSP = MIDAS.agents.SSP(E, 100, name='SSP')
+gP = MIDAS.agents.perceptron(E, 100, name='SSP')
 
 # Initial conditions
-gSSP.initial.speed = 0.01
+gP.initial.speed = 0.01
 
 # ─── I/O ───────────────────────────────────────
 
 # Spatial canva
-# gSSP.canva.radii = [0.1]
-# gSSP.canva.number_of_azimuths = 4
+canva = MIDAS.ANN.canva.spatial()
+canva.radii = [0.1]
+canva.number_of_azimuths = 4
 
 # ─── Inputs
 
-gSSP.input(MIDAS.PERCEPTION.DENSITY, 
-           normalization = MIDAS.NORMALIZATION.SAME_GROUP,
-           perceived = gSSP, 
-           coefficients = np.array([1, 1, 1, 1])*1)
+gP.input(MIDAS.PERCEPTION.DENSITY,
+         perceived = gP, 
+         canva = canva,
+         normalization = MIDAS.NORMALIZATION.SAME_GROUP,         
+         coefficients = np.array([1, 1, 1, 1])*1)
 
 # # # # ─── Outputs 
 
 # # # gSSP.output(MIDAS.ACTION.REORIENTATION, activation = MIDAS.ACTIVATION.HSM_CENTERED)
 
-gSSP.display()
+gP.display()
 
 # gSSP.canva.display()
 
 # ═══ Visualization ════════════════════════════════════════════════════════
 
-# E.animation = MIDAS.animation()
+E.animation = MIDAS.animation(agents=MIDAS.ANIMATION_AGENTS.ALL)
 
-# E.animation.window.autoplay = False
+E.animation.window.information.display(True)
+E.animation.window.autoplay = False
 # E.animation.window.show()
 
 
@@ -86,9 +87,11 @@ gSSP.display()
 
 # E.animation.gridsize = 0.25
 
-# # === Simulation ===========================================================
+# ═══ Simulation ═══════════════════════════════════════════════════════════
 
 # # E.window.movieFile = movieDir + 'test.mp4'
 
 # # E.window.autoplay = False
-# E.run()
+E.run()
+
+# E.display()

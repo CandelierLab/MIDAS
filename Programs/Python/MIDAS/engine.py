@@ -2,12 +2,27 @@
 MIDAS Engine
 '''
 
+import os
+import warnings
 import numpy as np
 from rich import print
 from rich.panel import Panel
 from rich.table import Table
+import pyopencl as cl
+from pyopencl.clrandom import PhiloxGenerator
+import pyopencl.array as cl_array
+
+os.environ['PYOPENCL_CTX'] = '0'
+os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
+
 
 import MIDAS
+
+# ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░ ENGINE FRONTEND ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
 class engine:
   '''
@@ -18,7 +33,8 @@ class engine:
   #                               CONSTRUCTOR
   # ════════════════════════════════════════════════════════════════════════
     
-  def __init__(self, dimension=2, **kwargs):
+  # ────────────────────────────────────────────────────────────────────────
+  def __init__(self, dimension=2, platform='GPU', multi=1, **kwargs):
     '''
     Constructor
 
@@ -56,6 +72,32 @@ class engine:
 
     self.storage = None
 
+    # ─── Platform
+
+    self.platform = platform
+    self.multi = multi
+    
+  # ════════════════════════════════════════════════════════════════════════
+  #                                PROPERTIES
+  # ════════════════════════════════════════════════════════════════════════
+   
+  # ─── animation ──────────────────────────────────────────────────────────
+  
+  @property
+  def animation(self): return self._animation
+
+  @animation.setter
+  def animation(self, a):
+
+    # Define animation
+    self._animation = a
+
+    # Define engine
+    self._animation.engine = self
+
+    # Aniation initialization
+    self._animation.initialize()
+
   # ════════════════════════════════════════════════════════════════════════
   #                                 DISPLAY
   # ════════════════════════════════════════════════════════════════════════
@@ -68,6 +110,9 @@ class engine:
     groups = '[b i #abcdef]groups[/]\n'
     if not len(self.group):
       groups += '─── [i]no group[/]'
+    else:
+      for group in self.group:
+        groups += '• ' + group.rich(oneline=True)
 
     # ─── Simulation
 
@@ -92,6 +137,7 @@ class engine:
   #                                 Agents
   # ════════════════════════════════════════════════════════════════════════
   
+  # ────────────────────────────────────────────────────────────────────────
   def add_group(self, group):
     '''
     Add a group of agents
@@ -106,26 +152,282 @@ class engine:
     # Append group
     self.group.append(group)
 
-    # Return group id
-    return len(self.group)-1
+    # Set group id
+    group.id = len(self.group)-1
+
+    # ─── Update agents list
+
+    I0 = self.agents.N
+
+    # Update number of agents
+    self.agents.N += group.N
+
+    # Update groups
+    self.agents.group = np.concatenate((self.agents.group,
+                                        np.full(group.N, fill_value=group.id)))
+    
+    # Set identifiers
+    group.Id = np.array(range(I0, self.agents.N), dtype=int)
 
   # ════════════════════════════════════════════════════════════════════════
-  #                                PROPERTIES
+  #                               Simulation
   # ════════════════════════════════════════════════════════════════════════
-   
-  # ─── animation ──────────────────────────────────────────────────────────
   
-  @property
-  def animation(self): return self._animation
+  # ────────────────────────────────────────────────────────────────────────
+  def run(self):
 
-  @animation.setter
-  def animation(self, a):
+    # ─── Checks ────────────────────────────────
 
-    # Define animation
-    self._animation = a
+    # No animation
+    if self.animation is None:
+    
+      # Number of steps
+      if self.steps is None:
+        warnings.warn('The number of steps must be defined when there is no animation.')
+        return
+      
+      # # Storage
+      # if self.storage is None:
+      #   warnings.warn('A storage location must be defined when there is no animation.')
+      #   return
 
-    # Define engine
-    self._animation.engine = self
+    # ─── Initial conditions ────────────────────
 
-    # Initialize animation
-    self._animation.initialize()
+    # Initialize arrays
+    self.agents.x = np.empty(self.agents.N)
+    self.agents.y = np.empty(self.agents.N)
+    self.agents.v = np.empty(self.agents.N)
+    self.agents.a = np.empty(self.agents.N)    
+
+    for group in self.group:
+
+      # Get initial positions
+      self.agents.x[group.Id], self.agents.y[group.Id] = group.initial.get_positions()
+
+      # Get initial velocities
+      self.agents.v[group.Id], self.agents.a[group.Id] = group.initial.get_velocities()
+
+    # ─── Platform engine ───────────────────────
+
+    match self.platform:
+      case 'CPU': self.cpu = CPU(self)
+      case 'GPU': self.gpu = GPU(self)
+
+    # ─── Storage  ──────────────────────────────
+
+    # ─── Timing  ───────────────────────────────
+
+    # ═══ Main loop  ════════════════════════════
+
+    if self.animation is None:
+
+      from alive_progress import alive_it
+
+      ''' It is important that steps start at 1, step=0 being the initial state '''
+      bar = alive_it(range(self.steps))
+      bar.title = self.verbose.get_caller(1)
+      for step in bar:
+        if step: self.step(step)
+
+      self.end()
+
+    else:
+
+      # GPU imports
+      if self.platform=='GPU':
+        self.gpu.import_position = True
+        self.gpu.import_velocity = True
+
+      # Use the animation clock
+      self.animation.initial_setup()
+      self.animation.window.show()
+
+  # ────────────────────────────────────────────────────────────────────────
+  def step(self, i):
+    '''
+    Operations to do at evey step
+    '''
+
+    # ─── Update velocities ─────────────────────
+
+
+
+    # ─── Move agents ───────────────────────────
+
+    match self.platform:
+      case 'CPU': pass
+      case 'GPU': self.gpu.motion()
+    
+  # ────────────────────────────────────────────────────────────────────────
+  def end(self):
+    '''
+    Operations to do when the simalutation is over
+    '''
+
+    pass
+
+# ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ CPU ENGINE ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+class CPU:
+  
+  # ════════════════════════════════════════════════════════════════════════
+  #                               CONSTRUCTOR
+  # ════════════════════════════════════════════════════════════════════════
+    
+  # ────────────────────────────────────────────────────────────────────────
+  def __init__(self, engine):
+    '''
+    Constructor
+    '''
+
+    # Engine
+    self.engine = engine
+
+    # Multiverses
+    self.multi = self.engine.multi
+
+# ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ GPU ENGINE ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+class GPU:
+  
+  # ════════════════════════════════════════════════════════════════════════
+  #                               CONSTRUCTOR
+  # ════════════════════════════════════════════════════════════════════════
+    
+  # ────────────────────────────────────────────────────────────────────────
+  def __init__(self, engine):
+    '''
+    Constructor
+    '''
+
+    # Engine
+    self.engine = engine
+
+    # Multiverses
+    self.multi = self.engine.multi
+    ''' NB: Multiverses are not implemented yet '''
+
+    # Kernels
+    self.kernel = type('obj', (object,), {'motion': None})
+
+    # ─── Import options ────────────────────────
+
+    self.import_position = False
+    self.import_velocity = False
+
+    # ─── Types ─────────────────────────────────
+
+    self.type_nag = np.float32      # Number of agents
+
+    self.type_pos = np.float32      # Positions
+    self.type_vel = np.float32      # Velocities
+
+    # ─── Constants ─────────────────────────────
+
+    # Number of agents
+    # # # self.n_agents = self.n_agents_format(self.engine.agents.N)
+
+    # ─── OpenCL machinery ──────────────────────
+
+    # ─── Context
+
+    platform = cl.get_platforms()
+    my_gpu_devices = [platform[0].get_devices(device_type=cl.device_type.GPU)[0]]
+    ctx = cl.Context(devices=my_gpu_devices)
+
+    # Queue
+    self.queue = cl.CommandQueue(ctx)
+
+    # Random number generator
+    self.rng =  PhiloxGenerator(context=ctx)
+
+    # ─── Kernels ───────────────────────────────
+    
+    # ─── Motion
+
+    '''
+    This kernel sets the new positions and orientation based on the velocities.
+    It handles the boundary conditions (bouncing and periodic)
+    '''
+
+    prg = cl.Program(ctx, open(MIDAS.path + 'GPU' + os.path.sep + 'motion_2d.cl').read()).build()
+    self.kernel.motion = prg.motion
+
+    # ─── Data ──────────────────────────────────
+    
+    # ─── Host arrays
+
+    self.engine.agents.x = self.engine.agents.x.astype(self.type_pos)
+    self.engine.agents.y = self.engine.agents.y.astype(self.type_pos)
+    self.engine.agents.v = self.engine.agents.v.astype(self.type_vel)
+    self.engine.agents.a = self.engine.agents.a.astype(self.type_vel)
+
+    # ─── Device arrays
+
+    mf = cl.mem_flags
+
+    # Arena
+    match self.engine.geometry.arena.type:
+
+      case MIDAS.ARENA.CIRCULAR:
+        arena = np.array([self.engine.geometry.arena.type,
+                          self.engine.geometry.arena.radius], dtype = np.float32)
+        
+      case MIDAS.ARENA.RECTANGULAR:
+        arena = np.array([self.engine.geometry.arena.type,
+                          self.engine.geometry.arena.shape[0]/2,
+                          self.engine.geometry.arena.shape[1]/2], dtype = np.float32)
+        
+    self.d_arena = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = arena)
+
+    # Boundary conditions
+    bcond = np.array(self.engine.geometry.arena.periodic, dtype = bool)
+    self.d_bcond = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = bcond)
+
+
+    # Cnostants
+    self.d_nag = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = self.type_nag(self.engine.agents.N))
+    
+    # Arrays
+    self.d_x = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.x)
+    self.d_y = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.y)
+    self.d_v = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.v)
+    self.d_a = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.a)
+    
+    # self.d_rnd = cl_array.zeros(self.queue, self.multi*self.n_agents, dtype=np.float32)
+
+  # ────────────────────────────────────────────────────────────────────────
+  def motion(self):
+    '''
+    Update the agents position and orientations
+    '''
+
+    # # Prepare random array
+    # self.rng.fill_uniform(self.d_rnd)
+
+    self.kernel.motion(self.queue, [self.engine.agents.N*self.engine.multi], None,     # Required arguments
+                       self.d_arena,
+                       self.d_bcond,
+                       self.d_x,    # ┐
+                       self.d_y,    # ┘ position
+                       self.d_v,    # ┐
+                       self.d_a,    # ┘ velocity
+                       ).wait()
+
+    # ─── Imports
+
+    if self.import_position:    
+      cl.enqueue_copy(self.queue, self.engine.agents.x, self.d_x)
+      cl.enqueue_copy(self.queue, self.engine.agents.y, self.d_y)
+
+    if self.import_velocity:
+      cl.enqueue_copy(self.queue, self.engine.agents.v, self.d_v)
+      cl.enqueue_copy(self.queue, self.engine.agents.a, self.d_a)

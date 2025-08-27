@@ -4,7 +4,7 @@ A python toolbox for *Multiple Information-Driven Agent Simulation* (MIDAS).
 ## Installation
 
 ```
-pip install numpy scipy lib-anim rich alive-progress
+pip install numpy scipy pyopencl lib-anim rich alive-progress
 ```
 
 ## Old installation

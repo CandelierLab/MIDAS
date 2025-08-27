@@ -11,9 +11,8 @@ import MIDAS
 class input:
 
   # ────────────────────────────────────────────────────────────────────────
-  def __init__(self, group, itype, 
-               perceived = MIDAS.GROUP.SELF, 
-               canva = None,
+  def __init__(self, group, itype, canva,
+               perceived = MIDAS.GROUP.SELF,
                coefficients = None,
                normalization = MIDAS.NORMALIZATION.NONE):
 
@@ -22,8 +21,6 @@ class input:
 
     # Canva
     self.canva = canva
-    if canva is None:
-      self.canva = MIDAS.ANN.spatial(self.group, [], 1, 1) if self.group.canva is None else self.group.canva
       
   # ────────────────────────────────────────────────────────────────────────
   def rich(self, title=True):

@@ -6,16 +6,17 @@ import numpy as np
 from rich import print
 from rich.panel import Panel
 
+# ══════════════════════════════════════════════════════════════════════════
+#                               spatial canva
+# ══════════════════════════════════════════════════════════════════════════
+
 class spatial:
 
   # ────────────────────────────────────────────────────────────────────────
-  def __init__(self, group, radii, number_of_azimuths, number_of_altitudes):
-
-    # Group
-    self.group = group
+  def __init__(self, dimension=2, radii=[], number_of_azimuths=1, number_of_altitudes=1):
 
     # Dimension
-    self.dimension = self.group.engine.geometry.dimension
+    self.dimension = dimension
 
     # Radii
     self.R = np.array(radii)

@@ -1,4 +1,6 @@
 Finalize input/output
+ - Every group has inputs
+ - Every input of ANN-based agents has a canva
 Faire marcher la simu SSP sur GPU, pour avoir la structure globale
 Affiner toutes les options:
 - Simulation engine: run, steps, timebar, end
