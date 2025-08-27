@@ -71,3 +71,10 @@ class spatial:
   def display(self): 
 
     print(Panel(self.rich(title=False), title=f'{self.dimension}d spatial canva'))
+
+  # ────────────────────────────────────────────────────────────────────────
+  def prepare(self, type):
+
+    R = np.concatenate(([self.nR], self.R)).astype(type)
+    A = np.concatenate(([self.nAz], np.linspace(2*np.pi/self.nAz, 2*np.pi, self.nAz))).astype(type)
+    return (R, A)

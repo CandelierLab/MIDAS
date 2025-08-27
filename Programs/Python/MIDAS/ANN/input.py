@@ -21,6 +21,9 @@ class input:
 
     # Canva
     self.canva = canva
+
+    # Coefficients
+    self.coefficients = coefficients
       
   # ────────────────────────────────────────────────────────────────────────
   def rich(self, title=True):

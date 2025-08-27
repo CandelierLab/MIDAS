@@ -15,7 +15,6 @@ import pyopencl.array as cl_array
 os.environ['PYOPENCL_CTX'] = '0'
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 
-
 import MIDAS
 
 # ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
@@ -250,13 +249,22 @@ class engine:
 
     # ─── Update velocities ─────────────────────
 
-
-
-    # ─── Move agents ───────────────────────────
-
     match self.platform:
-      case 'CPU': pass
-      case 'GPU': self.gpu.motion()
+
+      case 'CPU': 
+        # TODO
+        pass
+
+      case 'GPU': 
+        
+        # Build inputs
+        self.gpu.perception()
+
+        # Compute outputs
+        self.gpu.computation()
+
+        # Update positions
+        self.gpu.motion()
     
   # ────────────────────────────────────────────────────────────────────────
   def end(self):
@@ -316,7 +324,9 @@ class GPU:
     ''' NB: Multiverses are not implemented yet '''
 
     # Kernels
-    self.kernel = type('obj', (object,), {'motion': None})
+    self.kernel = type('obj', (object,), {'perception': None,
+                                          'computation': None,
+                                          'motion': None})
 
     # ─── Import options ────────────────────────
 
@@ -325,10 +335,11 @@ class GPU:
 
     # ─── Types ─────────────────────────────────
 
-    self.type_nag = np.float32      # Number of agents
-
+    self.type_idx = np.uint32       # Indices
     self.type_pos = np.float32      # Positions
     self.type_vel = np.float32      # Velocities
+    self.type_cnv = np.float32      # Canva
+    self.type_cff = np.float32      # Coefficients
 
     # ─── Constants ─────────────────────────────
 
@@ -350,7 +361,26 @@ class GPU:
     self.rng =  PhiloxGenerator(context=ctx)
 
     # ─── Kernels ───────────────────────────────
-    
+
+    # ─── Perception
+
+    '''
+    This kernel builds the inputs for each agent
+    It handles the boundary conditions (bouncing and periodic)
+    '''
+
+    prg = cl.Program(ctx, open(MIDAS.path + 'GPU' + os.path.sep + 'perception_2d.cl').read()).build()
+    self.kernel.perception = prg.perception
+
+    # ─── Computation
+
+    '''
+    This kernel computes the outputs for each agent
+    '''
+
+    prg = cl.Program(ctx, open(MIDAS.path + 'GPU' + os.path.sep + 'computation.cl').read()).build()
+    self.kernel.computation = prg.computation
+
     # ─── Motion
 
     '''
@@ -392,17 +422,75 @@ class GPU:
     bcond = np.array(self.engine.geometry.arena.periodic, dtype = bool)
     self.d_bcond = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = bcond)
 
-
-    # Cnostants
-    self.d_nag = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = self.type_nag(self.engine.agents.N))
-    
-    # Arrays
+    # Position and velocity
     self.d_x = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.x)
     self.d_y = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.y)
     self.d_v = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.v)
     self.d_a = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = self.engine.agents.a)
     
+    # Interactions
+    pairs = np.stack(np.triu_indices(self.engine.agents.N,1)).astype(self.type_idx).T.copy()
+    self.d_pairs = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = pairs)
+    self.n_pairs = pairs.shape[0]
+
+    # Canva
+    canva = self.engine.group[0].l_input[0].canva
+    cnv_r, cnv_theta = canva.prepare(self.type_cnv)
+    self.d_cnv_r = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = cnv_r)
+    self.d_cnv_theta = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = cnv_theta)
+
+    # Input
+    self.d_input = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR,
+                             hostbuf = np.zeros((self.engine.agents.N, canva.nR, canva.nAz), dtype=np.uint32))
+    
+    # DEBUG /!\ used in self.perception
+    self.h_input = np.zeros((self.engine.agents.N, canva.nR, canva.nAz), dtype=np.uint32)    
+
+    # Coefficients
+    self.d_coeff = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR,
+                             hostbuf = self.engine.group[0].l_input[0].coefficients.astype(self.type_cff))
+
+    # Random numbers
     # self.d_rnd = cl_array.zeros(self.queue, self.multi*self.n_agents, dtype=np.float32)
+
+  # ────────────────────────────────────────────────────────────────────────
+  def perception(self):
+    '''
+    Build the agents inputs
+    '''
+    
+    # Reset inputs to zeros
+    cl.enqueue_fill_buffer(self.queue, self.d_input, np.uint32(0), 0, self.h_input.nbytes)
+
+    self.kernel.perception(self.queue, [self.n_pairs], None,     # Required arguments
+                       self.d_arena,
+                       self.d_bcond,
+                       self.d_pairs,
+                       self.d_x,           # ┐
+                       self.d_y,           # ┘ position
+                       self.d_a,           # - velocity
+                       self.d_cnv_r,
+                       self.d_cnv_theta,
+                       self.d_input,
+                       ).wait()
+    
+    # DEBUG
+    # cl.enqueue_copy(self.queue, self.h_input, self.d_input)
+    # print(self.h_input)
+
+  # ────────────────────────────────────────────────────────────────────────
+  def computation(self):
+    '''
+    Computation of the agents ouputs
+    '''
+
+    self.kernel.computation(self.queue, [self.engine.agents.N], None,     # Required arguments
+                            self.d_input,
+                            self.d_cnv_r,
+                            self.d_cnv_theta,                       
+                            self.d_coeff,
+                            self.d_a,
+                            ).wait()
 
   # ────────────────────────────────────────────────────────────────────────
   def motion(self):
@@ -413,7 +501,7 @@ class GPU:
     # # Prepare random array
     # self.rng.fill_uniform(self.d_rnd)
 
-    self.kernel.motion(self.queue, [self.engine.agents.N*self.engine.multi], None,     # Required arguments
+    self.kernel.motion(self.queue, [self.engine.agents.N], None,     # Required arguments
                        self.d_arena,
                        self.d_bcond,
                        self.d_x,    # ┐

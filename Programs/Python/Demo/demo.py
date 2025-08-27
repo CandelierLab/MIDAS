@@ -17,8 +17,8 @@ os.system('clear')
 
 # ═══ Engine ═══════════════════════════════════════════════════════════════
 
-E = MIDAS.engine(type=MIDAS.ARENA.CIRCULAR)
-# E = MIDAS.engine(periodic=[True, True])
+# E = MIDAS.engine(type=MIDAS.ARENA.CIRCULAR)
+E = MIDAS.engine()
 
 # Number of steps
 E.steps = 100
@@ -26,7 +26,7 @@ E.steps = 100
 # ═══ Agents ═══════════════════════════════════════════════════════════════
 
 # Group of agents
-gP = MIDAS.agents.perceptron(E, 100, name='SSP')
+gP = MIDAS.agents.perceptron(E, 100000, name='SSP')
 
 # Initial conditions
 gP.initial.speed = 0.01
@@ -35,7 +35,7 @@ gP.initial.speed = 0.01
 
 # Spatial canva
 canva = MIDAS.ANN.canva.spatial()
-canva.radii = [0.1]
+canva.radii = [0.5]
 canva.number_of_azimuths = 4
 
 # ─── Inputs
@@ -43,27 +43,20 @@ canva.number_of_azimuths = 4
 gP.input(MIDAS.PERCEPTION.DENSITY,
          perceived = gP, 
          canva = canva,
-         normalization = MIDAS.NORMALIZATION.SAME_GROUP,         
-         coefficients = np.array([1, 1, 1, 1])*1)
+         coefficients = np.array([1, 1, -1, -1])*1, 
+         normalization = MIDAS.NORMALIZATION.SAME_GROUP)
 
-# # # # ─── Outputs 
+# # ─── Outputs 
 
-# # # gSSP.output(MIDAS.ACTION.REORIENTATION, activation = MIDAS.ACTIVATION.HSM_CENTERED)
-
-gP.display()
-
-# gSSP.canva.display()
+# gSSP.output(MIDAS.ACTION.REORIENTATION, activation = MIDAS.ACTIVATION.HSM_CENTERED)
 
 # ═══ Visualization ════════════════════════════════════════════════════════
 
-E.animation = MIDAS.animation(agents=MIDAS.ANIMATION_AGENTS.ALL)
+E.animation = MIDAS.animation(agents=MIDAS.ANIMATION_AGENTS.SUBSET_100)
 
 E.animation.window.information.display(True)
 E.animation.window.autoplay = False
 # E.animation.window.show()
-
-
-
 
 # # === Storage ==============================================================
 

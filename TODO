@@ -1,8 +1,15 @@
-Finalize input/output
- - Every group has inputs
- - Every input of ANN-based agents has a canva
-Faire marcher la simu SSP sur GPU, pour avoir la structure globale
+- Periodic boundary conditions for the inputs
+- Better handling of LR coefficients
+- Pass alpha_max
+- Angular noise
+
+Calculer le parameter diagram
+
 Affiner toutes les options:
+- input > perceived
+- input > nomralization
+
+- Add angular noise (motion.cl)
 - Simulation engine: run, steps, timebar, end
 - I/O (polargrid)
 - Groups and agents
