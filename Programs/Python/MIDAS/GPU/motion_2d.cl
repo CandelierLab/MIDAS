@@ -28,7 +28,7 @@ __kernel void motion(
   // ─── Arena ──────────────────────────────────
 
   // ─── Circular arena
-  if (arena[0]==0.0){
+  if (arena[0]==0.0) {
 
     float r2 = x1*x1 + y1*y1;
 
@@ -50,7 +50,7 @@ __kernel void motion(
   }
   
   // ─── Rectangular arena  
-  if (arena[0]==1.0){
+  if (arena[0]==1.0) {
 
     // Low X
     if (x1 < -arena[1]) {

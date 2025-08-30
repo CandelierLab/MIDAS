@@ -3,11 +3,13 @@ MIDAS Engine
 '''
 
 import os
+import inspect
 import warnings
 import numpy as np
 from rich import print
 from rich.panel import Panel
 from rich.table import Table
+
 import pyopencl as cl
 from pyopencl.clrandom import PhiloxGenerator
 import pyopencl.array as cl_array
@@ -63,13 +65,12 @@ class engine:
 
     # ─── Animation
 
-    # self.window = None
     self._animation = None
-    # self.information = None
+    self.close_finished_animation = True
 
     # ─── Storage
 
-    self.storage = None
+    self._storage = None
 
     # ─── Platform
 
@@ -94,8 +95,25 @@ class engine:
     # Define engine
     self._animation.engine = self
 
-    # Aniation initialization
+    # Animation initialization
     self._animation.initialize()
+
+  # ─── storage ────────────────────────────────────────────────────────────
+  
+  @property
+  def storage(self): return self._storage
+
+  @storage.setter
+  def storage(self, S):
+
+    # Define animation
+    self._storage = S
+
+    # Define engine
+    self._storage.engine = self
+
+    # Storage initialization
+    self._storage.initialize()
 
   # ════════════════════════════════════════════════════════════════════════
   #                                 DISPLAY
@@ -214,21 +232,43 @@ class engine:
 
     # ─── Storage  ──────────────────────────────
 
+    if self.storage is not None:
+
+      # GPU imports
+      if self.platform=='GPU':
+        self.gpu.import_position = True
+        self.gpu.import_velocity = True
+
+      # Initial state
+      self.storage.insert_step(0, self.agents.pos(), self.agents.vel())
+
     # ─── Timing  ───────────────────────────────
 
     # ═══ Main loop  ════════════════════════════
 
     if self.animation is None:
 
-      from alive_progress import alive_it
+      # ─── Caller
 
-      ''' It is important that steps start at 1, step=0 being the initial state '''
-      bar = alive_it(range(self.steps))
-      bar.title = self.verbose.get_caller(1)
-      for step in bar:
-        if step: self.step(step)
+      caller_file = inspect.stack()[1][0].f_locals['__file__']
+      caller = os.path.basename(caller_file).rsplit('.', 1)[0]
 
-      self.end()
+      # ─── Status bar
+
+      from alive_progress import alive_bar
+      with alive_bar(self.steps, title=caller) as bar:
+      
+        ''' The first step is the initial state. '''
+        bar()
+
+        # ─── Main loop 
+
+        for step in range(self.steps):
+          if step:
+            self.step(step)
+            bar()
+
+        self.end()
 
     else:
 
@@ -239,6 +279,7 @@ class engine:
 
       # Use the animation clock
       self.animation.initial_setup()
+      self.animation.window.step_max = self.steps
       self.animation.window.show()
 
   # ────────────────────────────────────────────────────────────────────────
@@ -247,7 +288,7 @@ class engine:
     Operations to do at evey step
     '''
 
-    # ─── Update velocities ─────────────────────
+    # ─── Motion ────────────────────────────────
 
     match self.platform:
 
@@ -265,14 +306,37 @@ class engine:
 
         # Update positions
         self.gpu.motion()
-    
+
+    # ─── Storage ───────────────────────────────
+
+    if self.storage is not None:
+
+      # Initial state
+      self.storage.insert_step(i, self.agents.pos(), self.agents.vel())
+
+    # ─── End of the run ────────────────────────
+
+    if self.animation is not None and \
+       self.steps is not None and \
+       i>=self.steps:
+      
+      # Close animation
+      if self.close_finished_animation:
+        self.animation.window.close()
+
+      # End simulation
+      self.end()
+
   # ────────────────────────────────────────────────────────────────────────
   def end(self):
     '''
     Operations to do when the simalutation is over
     '''
 
-    pass
+    # ─── Storage
+
+    if self.storage is not None:
+      self.storage.db_conn.commit()
 
 # ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
@@ -448,7 +512,7 @@ class GPU:
 
     # Coefficients
     self.d_coeff = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR,
-                             hostbuf = self.engine.group[0].l_input[0].coefficients.astype(self.type_cff))
+                             hostbuf = self.engine.group[0].l_input[0].weights.astype(self.type_cff))
 
     # Random numbers
     # self.d_rnd = cl_array.zeros(self.queue, self.multi*self.n_agents, dtype=np.float32)

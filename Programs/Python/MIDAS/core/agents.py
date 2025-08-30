@@ -57,7 +57,15 @@ class agents:
     print(Panel(self.rich(title=False), title='agents'))
 
   # ────────────────────────────────────────────────────────────────────────
-  def pos(self, i): return [self.x[i], self.y[i]]
+  def pos(self, i=None): 
+    if i is None:
+      return np.stack((self.x, self.y)).T
+    else:
+      return [self.x[i], self.y[i]]
 
   # ────────────────────────────────────────────────────────────────────────
-  def vel(self, i): return [self.v[i], self.a[i]]
+  def vel(self, i=None): 
+    if i is None:
+      return np.stack((self.v, self.a)).T
+    else:
+      return [self.v[i], self.a[i]]

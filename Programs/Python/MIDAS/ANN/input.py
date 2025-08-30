@@ -13,6 +13,7 @@ class input:
   # ────────────────────────────────────────────────────────────────────────
   def __init__(self, group, itype, canva,
                perceived = MIDAS.GROUP.SELF,
+               weights = None,
                coefficients = None,
                normalization = MIDAS.NORMALIZATION.NONE):
 
@@ -23,7 +24,20 @@ class input:
     self.canva = canva
 
     # Coefficients
-    self.coefficients = coefficients
+    if weights is not None:
+      self.weights = weights
+    else:
+
+      match coefficients.ndim:
+        case 1:
+          nc = int(coefficients.size/2)
+          coefficients[nc:] *= -1
+
+        case 2:
+          nc = int(coefficients.shape[1]/2)
+          coefficients[:,nc:] *= -1
+
+      self.weights = coefficients
       
   # ────────────────────────────────────────────────────────────────────────
   def rich(self, title=True):

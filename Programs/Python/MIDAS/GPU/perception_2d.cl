@@ -49,6 +49,24 @@ __kernel void perception(
 
   // ─── Interaction ────────────────────────────
 
+  // ─── Periodic boundary conditions
+
+  if (arena[0]==1.0) {
+
+    // X-axis
+    if (bcond[0] && fabs(x2-x1)>arena[1]) {
+      if (x1<x2) { x2 -= 2*arena[1]; }
+      else { x2 += 2*arena[1]; }
+    }
+
+    // Y-axis
+    if (bcond[1] && fabs(y2-y1)>arena[2]) {
+      if (y1<y2) { y2 -= 2*arena[2]; }
+      else { y2 += 2*arena[2]; }
+    }
+
+  }
+
   // ─── Check
 
   float r2 = (x2-x1)*(x2-x1) + (y2-y1)*(y2-y1);

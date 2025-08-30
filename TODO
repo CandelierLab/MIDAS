@@ -1,21 +1,40 @@
-- Periodic boundary conditions for the inputs
-- Better handling of LR coefficients
-- Pass alpha_max
-- Angular noise
+- replay
 
-Calculer le parameter diagram
+[ >>> Calculer le parameter diagram <<< ]
 
-Affiner toutes les options:
-- input > perceived
-- input > nomralization
+- 1d > visualization
+- 1d > update engine
 
+[ >>> Update lib-anim for 3D <<< ]
+
+- 3d > visualization
+- 3d > update engine
+
+- 2d > pass all parameters (alpha_max)
 - Add angular noise (motion.cl)
-- Simulation engine: run, steps, timebar, end
-- I/O (polargrid)
-- Groups and agents
-- Fields
-- Storage
-- CPU engine
+
+- Other group: fixed
+- Other group: random
+- Other group: Vicsek
+- Other group: Aoki-couzin
+- Other group: Peruani
+
+- Multi-group simulations
+
+- input > temporal sampling canva
+- input > perceived
+- input > normalization
+
+- output > activation function
+- output > speed modulation
+
+- fields > building
+- fields > display
+
+- CPU engine (?)
+
+- Other group: phototactic SSP / TSP
+- Other group: chemotactic SSP / TSP
 
 ────────────────────────────────────────────────────────────────────────
 ────────────────────────────────────────────────────────────────────────

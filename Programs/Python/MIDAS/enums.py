@@ -66,6 +66,14 @@ class ANIMATION_FIELD(IntEnum):
   DENSITY = -2
   POLARITY = -3
 
+# ═══ Storage ══════════════════════════════════════════════════════════════
+
+class COMMIT(IntEnum):
+
+  AT_THE_END = 0
+  EVERY_1_STEP = 1
+  
+
 # # === Coefficients sets ====================================================
 
 # class CoeffSet(IntEnum):

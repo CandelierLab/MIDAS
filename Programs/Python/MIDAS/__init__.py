@@ -15,3 +15,4 @@ from . import ANN
 # Classes
 from .engine import engine
 from .animation import animation
+from .storage import storage
