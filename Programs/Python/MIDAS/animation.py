@@ -47,7 +47,8 @@ class animation(anim.plane.canva):
     super().__init__(self.window,
                      boundaries=[np.array([-1, 1])*self.engine.geometry.arena.shape[0]/2,
                                  np.array([-1, 1])*self.engine.geometry.arena.shape[1]/2],
-                     display_boundaries=False)
+                     display_boundaries=False,
+                     pixelperunit=500)
 
     # Add animation to window
     self.window.add(self)
@@ -284,27 +285,31 @@ class animation(anim.plane.canva):
     #         zvalue = 9
     #       )
 
-    # # === Field ============================================================
+    # ─── Field ─────────────────────────────────
 
-    # if self.field is not AnimField.NONE:
+    if self.field is not MIDAS.ANIMATION_FIELD.NONE:
 
-    #   # Colormap
-    #   field_colormap = Colormap(self.field_options['cmap'], range=self.field_options['range'], ncolors=256)
+      # Colormap
+      cmap = anim.colormap(name = self.field_options['cmap'],
+                           range = self.field_options['range'],
+                           ncolors = 256)
 
-    #   # Image container
-    #   self.add(field, 'field',
-    #            position = -self.engine.geom.arena_shape/2,
-    #            cmap = field_colormap,
-    #            flip_vertical = True,
-    #            zvalue = 0,
-    #            )
-      
-    #   # Colorbar
-    #   self.window.information.add(colorbar, 'field_colorbar',
-    #                               colormap = field_colormap,
-    #                               insight = True,
-    #                               height = 0.5,
-    #                               nticks = 2)
+      # Image container
+      self.item.field = anim.plane.image(
+        position = -self.engine.geometry.arena.shape/2,
+        dimension = self.engine.geometry.arena.shape.tolist(),
+        flip = [False, True],
+        array = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0])),
+        colormap = cmap,
+        zvalue = 0,
+      )
+
+      # Colorbar
+      # self.window.information.add(colorbar, 'field_colorbar',
+      #                             colormap = field_colormap,
+      #                             insight = True,
+      #                             height = 0.5,
+      #                             nticks = 2)
        
     # # === Misc display items ===============================================
 
@@ -402,7 +407,7 @@ class animation(anim.plane.canva):
     Update display
     '''
     
-    # ─── Agents
+    # ─── Agents ────────────────────────────────
 
     if self.l_agents is not None:
 
@@ -456,51 +461,53 @@ class animation(anim.plane.canva):
         # # #   # Update trace
         # # #   self.item[f'{i:d}_trace'].points = trace
 
-    # # # # === Field ============================================================
+    # ─── Field ─────────────────────────────────
 
-    # # # match self.field:
+    match self.field:
 
-    # # #   case AnimField.NONE:
-    # # #     pass
+      case MIDAS.ANIMATION_FIELD.NONE:
+        pass
 
-    # # #   case AnimField.DENSITY:
-    # # #     '''
-    # # #     The 2D integral of the density should be N, the number of agents.
-    # # #     '''
+      case MIDAS.ANIMATION_FIELD.DENSITY:
+        '''
+        The 2D integral of the density should be N, the number of agents.
+        '''
 
-    # # #     # Raw density
-    # # #     Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))
+        # Raw density
+        Img = np.zeros((self.field_options['resolution'][1], self.field_options['resolution'][0]))
         
-    # # #     for k in range(self.engine.agents.N):
+        for k in range(self.engine.agents.N):
 
-    # # #       x = (self.engine.agents.pos[k][0] + self.shift[0])/self.engine.geom.arena_shape[0] + 0.5
-    # # #       y = (self.engine.agents.pos[k][1] + self.shift[1])/self.engine.geom.arena_shape[1] + 0.5
+          pos = self.engine.agents.pos(k)
+          # x = (pos[0] + self.shift[0])/self.engine.geom.arena_shape[0] + 0.5
+          # y = (pos[1] + self.shift[1])/self.engine.geom.arena_shape[1] + 0.5
 
-    # # #       # Periodicity
-    # # #       if self.engine.geom.arena==Arena.RECTANGULAR:
-    # # #         if self.engine.geom.periodic[0]: x = x % 1
-    # # #         if self.engine.geom.periodic[1]: y = y % 1
+          x = pos[0]/self.engine.geometry.arena.shape[0] + 0.5
+          y = pos[1]/self.engine.geometry.arena.shape[1] + 0.5
 
-    # # #       i = round(x*self.field_options['resolution'][0] - 0.5) % self.field_options['resolution'][0]
-    # # #       j = round(y*self.field_options['resolution'][1] - 0.5) % self.field_options['resolution'][1]
+          # Periodicity
+          if self.engine.geometry.arena.type is MIDAS.ARENA.RECTANGULAR:
+            if self.engine.geometry.arena.periodic[0]: x = x % 1
+            if self.engine.geometry.arena.periodic[1]: y = y % 1
 
-    # # #       Img[j,i] += 1
+          i = round(x*self.field_options['resolution'][0] - 0.5) % self.field_options['resolution'][0]
+          j = round(y*self.field_options['resolution'][1] - 0.5) % self.field_options['resolution'][1]
+
+          Img[j,i] += 1
           
-    # # #     # Gaussian smooth
-    # # #     Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
+        # Gaussian smooth
+        Res = gaussian_filter(Img, (self.field_options['sigma'], self.field_options['sigma']))
 
-    # # #     # Update displayed field
-    # # #     self.item['field'].field = Res
+        # Range
+        # Res = (Res-np.min(Res))/(np.max(Res)-np.min(Res))*(self.field_options['range'][1]-self.field_options['range'][0]) + self.field_options['range'][0]
 
-    # # #   case AnimField.POLARITY:
+        # Update displayed field
+        self.item.field.array = Res
 
-    # # #     # !! TODO !!
-    # # #     pass
+      case _:
 
-    # # #   case _:
-
-    # # #     if self.engine.fields is not None and not isinstance(self.field, str) and self.field<self.engine.fields.N:
-    # # #       self.item['field'].image = self.engine.fields.field[self.field].values
+        if self.engine.fields is not None and not isinstance(self.field, str) and self.field<self.engine.fields.N:
+          self.item['field'].image = self.engine.fields.field[self.field].values
 
     # # === Misc =============================================================
 

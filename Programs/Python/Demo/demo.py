@@ -21,12 +21,12 @@ movieDir = '/home/raphael/Bureau/'
 E = MIDAS.engine()
 
 # Number of steps
-E.steps = 100
+E.steps = None
 
 # ═══ Agents ═══════════════════════════════════════════════════════════════
 
 # Group of agents
-gP = MIDAS.agents.perceptron(E, 100, name='SSP')
+gP = MIDAS.agents.perceptron(E, 1000, name='SSP')
 
 # Initial conditions
 gP.initial.speed = 0.01
@@ -35,7 +35,7 @@ gP.initial.speed = 0.01
 
 # Spatial canva
 canva = MIDAS.ANN.canva.spatial()
-canva.radii = [0.2]
+canva.radii = [0.05]
 canva.number_of_azimuths = 4
 
 # ─── Inputs
@@ -43,7 +43,7 @@ canva.number_of_azimuths = 4
 gP.input(MIDAS.PERCEPTION.DENSITY,
          perceived = gP, 
          canva = canva,
-         coefficients = np.array([1, 1, 1, 1])*-1, 
+         coefficients = np.array([1, 1, 1, 1])*1, 
          normalization = MIDAS.NORMALIZATION.SAME_GROUP)
 
 # # ─── Outputs 
@@ -52,16 +52,16 @@ gP.input(MIDAS.PERCEPTION.DENSITY,
 
 # ═══ Storage ══════════════════════════════════════════════════════════════
 
-E.storage = MIDAS.storage(dataDir + 'test.db')
-E.storage.commit_frequency = MIDAS.COMMIT.EVERY_1_STEP
+# E.storage = MIDAS.storage(dataDir + 'test.db')
+# E.storage.commit_frequency = MIDAS.COMMIT.EVERY_1_STEP
 
 # ═══ Visualization ════════════════════════════════════════════════════════
 
-# E.animation = MIDAS.animation(agents=MIDAS.ANIMATION_AGENTS.SUBSET_100)
+E.animation = MIDAS.animation(agents = MIDAS.ANIMATION_AGENTS.SUBSET_10,
+                              field = MIDAS.ANIMATION_FIELD.DENSITY)
 
-# E.animation.window.information.display(True)
-# E.close_finished_animation = False
-
+E.animation.window.information.display(True)
+E.close_finished_animation = False
 
 # # # --- Agent display options
 
@@ -70,7 +70,7 @@ E.storage.commit_frequency = MIDAS.COMMIT.EVERY_1_STEP
 
 # # # --- Field display options
 
-# # E.animation.field_options['range'] = [0, 1/N]
+E.animation.field_options['range'] = [0, 1/10]
 
 # # # --- Grid
 
