@@ -15,7 +15,7 @@ __kernel void computation(
   uint n_r = _r[0];
   uint n_theta = _theta[0];
 
-  float amax = M_PI_F/10;
+  float amax = M_PI_F/5;
 
   // ─── Computation ────────────────────────────
 

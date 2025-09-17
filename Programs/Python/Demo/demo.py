@@ -1,12 +1,7 @@
 import os
-import time
 import numpy as np
 
 import MIDAS
-
-# from MIDAS.enums import *
-# from MIDAS.polar_grid import PolarGrid
-# from MIDAS.engine import Engine
 
 os.system('clear')
 
@@ -26,7 +21,7 @@ E.steps = None
 # ═══ Agents ═══════════════════════════════════════════════════════════════
 
 # Group of agents
-gP = MIDAS.agents.perceptron(E, 1000, name='SSP')
+gP = MIDAS.groups.perceptron(E, 1000, name='SSP')
 
 # Initial conditions
 gP.initial.speed = 0.01
@@ -65,7 +60,7 @@ E.close_finished_animation = False
 
 # # # --- Agent display options
 
-# # E.animation.trace_duration = 10
+E.animation.trace_duration = 10
 # # # E.animation.group_options['agents']['cmap'] = 'hsv'
 
 # # # --- Field display options

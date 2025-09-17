@@ -16,7 +16,7 @@ class animation(anim.plane.canva):
 
   # ────────────────────────────────────────────────────────────────────────
   def __init__(self, 
-               engine = None,
+               engine:MIDAS.engine = None,
                agents = MIDAS.ANIMATION_AGENTS.NONE,
                field = MIDAS.ANIMATION_FIELD.NONE,
                title = 'MIDAS',
@@ -198,10 +198,10 @@ class animation(anim.plane.canva):
                            range=[0,len(self.l_agents)])
 
       for i in self.l_agents:
-               
-
-        # # Group parameters
-        # opt = self.group_options[self.engine.groups.names[int(self.engine.agents.group[i])]]
+        
+        # Group parameters
+        group = self.engine.group[self.engine.agents.group[i]]
+        param = self.group[group.name]
 
         # # --- Color
 
@@ -240,50 +240,51 @@ class animation(anim.plane.canva):
 
         # ─── Shape
 
-        if False: #self.engine.groups.atype[int(self.engine.agents.group[i])]==Agent.FIXED:
-          '''
-          Fixed agents
-          '''
+        match group.__class__.__name__:
 
-          self.add(circle, i,
-            position = self.engine.agents.pos[i,:],
-            radius = 0.0035,
-            colors = clrs,
-            zvalue = 2
-          )
+          case 'fixed':
+            '''
+            Fixed agents
+            '''
 
-        else:
-          '''
-          Moving agents
-          '''
+            pass
 
-          self.item[f'agent_{i}'] = anim.plane.polygon(
-            points = pts*0.015,
-            position = self.engine.agents.pos(i),
-            orientation = self.engine.agents.a[i],
-            color = cmap.qcolor(i),
-            zvalue = 10
-          )
+            # self.add(circle, i,
+            #   position = self.engine.agents.pos[i,:],
+            #   radius = 0.0035,
+            #   colors = clrs,
+            #   zvalue = 2
+            # )
 
-    #     # --- Traces
-        
-    #     if self.trace_duration is not None:
+          case 'perceptron':
+            '''
+            Moving agents
+            '''
 
-    #       trace = [self.engine.agents.pos[i,:]]*self.trace_duration
+            # ─── Agents
 
-    #       # Semi-transparent color
-    #       clr = QColor(clrs[0])
-    #       clr.setAlpha(100)
+            self.item[f'agent_{i}'] = anim.plane.polygon(
+              points = pts*0.015,
+              position = self.engine.agents.pos(i),
+              orientation = self.engine.agents.a[i],
+              color = param['color'],
+              zvalue = 10
+            )
 
-    #       # Trace paths
-    #       self.add(path, f'{i:d}_trace',
-    #         position = -self.engine.geom.arena_shape/2,
-    #         orientation = 0,
-    #         points = trace,
-    #         colors = (None, clr),
-    #         thickness = 3,
-    #         zvalue = 9
-    #       )
+            # ─── Traces
+            
+            if self.trace_duration is not None:
+
+              trace = np.array([self.engine.agents.pos(i)]*self.trace_duration)
+
+              # Trace paths
+              self.item[f'{i:d}_trace'] = anim.plane.path(
+                position = [0, 0],
+                points = trace,
+                stroke = param['color'],
+                thickness = 0.001,
+                zvalue = 9
+              )
 
     # ─── Field ─────────────────────────────────
 
@@ -431,35 +432,35 @@ class animation(anim.plane.canva):
         # Orientation
         self.item[f'agent_{i}'].orientation = self.engine.agents.a[i]
 
-        # # # # --- Traces
+        # --- Traces
 
-        # # # if self.trace_duration is not None:
+        if self.trace_duration is not None:
 
-        # # #   # Previous trace
-        # # #   trace = np.array(self.item[f'{i:d}_trace'].points)
-
-        # # #   # Roll new trace
-        # # #   trace = np.roll(trace, 1, axis=0)
-        # # #   trace[0,0] = x[i]
-        # # #   trace[0,1] = y[i]
-
-        # # #   # Periodic boundary conditions
-        # # #   if self.engine.geom.arena==Arena.RECTANGULAR:
+          # Previous trace
+          trace = [[p.x, p.y] for p in self.item[f'{i:d}_trace'].points]
           
-        # # #     if self.engine.geom.periodic[0]:
-        # # #       trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geom.arena_shape[0], axis=0)
-        # # #       I = np.logical_or(trace[:,0]<-self.engine.geom.arena_shape[0]/2, trace[:,0]>self.engine.geom.arena_shape[0]/2)
-        # # #       trace[I,0] = np.nan
-        # # #       trace[I,1] = np.nan
+          # Roll new trace
+          trace = np.roll(trace, 1, axis=0)
+          trace[0,0] = self.engine.agents.x[i]
+          trace[0,1] = self.engine.agents.y[i]
 
-        # # #     if self.engine.geom.periodic[1]:
-        # # #       trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geom.arena_shape[1], axis=0)
-        # # #       I = np.logical_or(trace[:,1]<-self.engine.geom.arena_shape[1]/2, trace[:,1]>self.engine.geom.arena_shape[1]/2)
-        # # #       trace[I,0] = np.nan
-        # # #       trace[I,1] = np.nan
+          # Periodic boundary conditions
+          if self.engine.geometry.arena.type==MIDAS.ARENA.RECTANGULAR:
+          
+            if self.engine.geometry.arena.periodic[0]:
+              trace[:,0] = np.unwrap(trace[:,0], period=self.engine.geometry.arena.shape[0], axis=0)
+              I = np.logical_or(trace[:,0]<-self.engine.geometry.arena.shape[0]/2, trace[:,0]>self.engine.geometry.arena.shape[0]/2)
+              trace[I,0] = np.nan
+              trace[I,1] = np.nan
+
+            if self.engine.geometry.arena.periodic[1]:
+              trace[:,1] = np.unwrap(trace[:,1], period=self.engine.geometry.arena.shape[1], axis=0)
+              I = np.logical_or(trace[:,1]<-self.engine.geometry.arena.shape[1]/2, trace[:,1]>self.engine.geometry.arena.shape[1]/2)
+              trace[I,0] = np.nan
+              trace[I,1] = np.nan
             
-        # # #   # Update trace
-        # # #   self.item[f'{i:d}_trace'].points = trace
+          # Update trace
+          self.item[f'{i:d}_trace'].points = trace
 
     # ─── Field ─────────────────────────────────
 

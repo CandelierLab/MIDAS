@@ -30,4 +30,6 @@ class fields:
     return s
 
   # ────────────────────────────────────────────────────────────────────────
-  def display(self): print(Panel(self.rich(title=False), title='fields'))
+  def display(self):
+    
+    print(Panel(self.rich(title=False), title='fields'))

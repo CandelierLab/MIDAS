@@ -12,14 +12,6 @@ class ARENA(IntEnum):
   CIRCULAR = 0
   RECTANGULAR = 1
 
-# ═══ Agent types ══════════════════════════════════════════════════════════
-
-# class Agent(IntEnum):
-
-#   FIXED = 0
-#   SSP = 1
-#   TSP = 2
-
 # ═══ Perception ═══════════════════════════════════════════════════════════
 
 class PERCEPTION(IntEnum):

@@ -9,7 +9,7 @@ path = os.path.dirname(__file__) + os.path.sep
 # Core
 from .enums import *
 from . import core
-from . import agents
+from . import groups
 from . import ANN
 
 # Classes
