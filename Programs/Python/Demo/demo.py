@@ -47,7 +47,7 @@ gP.input(MIDAS.PERCEPTION.DENSITY,
 
 # ═══ Storage ══════════════════════════════════════════════════════════════
 
-# E.storage = MIDAS.storage(dataDir + 'test.db')
+E.storage = MIDAS.storage(dataDir + 'test.db')
 # E.storage.commit_frequency = MIDAS.COMMIT.EVERY_1_STEP
 
 # ═══ Visualization ════════════════════════════════════════════════════════

@@ -47,14 +47,20 @@ class storage():
     self.db_conn = sqlite3.connect(self.db_file)
     self.db_curs = self.db_conn.cursor()
 
+    # ─── DB parameters
+    
+    try:
+      d = {p[0]:p[1] for p in self.db_curs.execute(f'SELECT * FROM Parameters').fetchall()}
+      d['dimension'] = int(d['dimension'])
+      d['steps'] = int(d['steps'])
+      d['N'] = int(d['N'])
+    except:
+      d = {}
+    self.param = type('parameters', (object,), d)
+
     # ─── DB properties
     
     self.commit_frequency = MIDAS.COMMIT.AT_THE_END
-
-    # ─── Engine properties
-
-    self.dimension = None
-    self.Nagents = None
 
   # ────────────────────────────────────────────────────────────────────────
   def initialize(self):
@@ -184,6 +190,20 @@ class storage():
   # ════════════════════════════════════════════════════════════════════════
   #                                READING
   # ════════════════════════════════════════════════════════════════════════
+
+  # ────────────────────────────────────────────────────────────────────────
+  # @property
+  # def N(self): 
+  #   if self._N is None:
+  #     self._N = self.db_curs.execute(f'SELECT COUNT(DISTINCT id) FROM Agents').fetchone()[0]
+  #   return self._N
+  
+  # # ────────────────────────────────────────────────────────────────────────
+  # @property
+  # def T(self): 
+  #   if self._T is None:
+  #     self._T = self.db_curs.execute(f'SELECT COUNT(DISTINCT id) FROM Agents').fetchone()[0]
+  #   return self._T
 
   # ────────────────────────────────────────────────────────────────────────
   def get_time(self, step):

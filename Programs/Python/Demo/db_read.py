@@ -13,9 +13,11 @@ dataDir = '/home/raphael/Bureau/data/'
 
 S = MIDAS.storage(dataDir + 'test.db')
 
+print(S.param.N)
+
 # ─── Time
 
-T = S.get_time(0)
+# T = S.get_time(0)
 
 # plt.style.use('dark_background')
 # fig, ax = plt.subplots()
@@ -24,9 +26,11 @@ T = S.get_time(0)
 
 # ─── Trajectory
 
-T = S.get_trajectory(0)
+# T = S.get_trajectory(0)
 
-plt.style.use('dark_background')
-fig, ax = plt.subplots()
-ax.plot(T[:,2], T[:,3], '.-')
-plt.show()
+# print(T)
+
+# plt.style.use('dark_background')
+# fig, ax = plt.subplots()
+# ax.plot(T[:,2], T[:,3], '.-')
+# plt.show()
