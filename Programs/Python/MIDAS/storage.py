@@ -54,6 +54,9 @@ class storage():
       d['dimension'] = int(d['dimension'])
       d['steps'] = int(d['steps'])
       d['N'] = int(d['N'])
+      if 'periodic_X' in d: d['periodic_X'] = bool(d['periodic_X'])
+      if 'periodic_Y' in d: d['periodic_Y'] = bool(d['periodic_Y'])
+      if 'periodic_Z' in d: d['periodic_Z'] = bool(d['periodic_Z'])
     except:
       d = {}
     self.param = type('parameters', (object,), d)
